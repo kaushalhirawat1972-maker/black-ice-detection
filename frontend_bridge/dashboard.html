@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLACK ICE DETECTION</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   0. CSS CUSTOM PROPERTIES — DESIGN SYSTEM
+   ================================================================ */
+:root {
+  --bg-deep: #050e1a;
+  --bg-navy: #07172c;
+  --bg-royal: #0b2545;
+  --bg-mid: #13315c;
+  --ice: #38bdf8;
+  --ice-glow: rgba(56,189,248,0.4);
+  --ice-dim: rgba(56,189,248,0.12);
+  --safe: #10b981;
+  --safe-glow: rgba(16,185,129,0.35);
+  --warn: #f59e0b;
+  --warn-glow: rgba(245,158,11,0.35);
+  --hazard: #ef4444;
+  --hazard-glow: rgba(239,68,68,0.45);
+  --linen: #f4f1ea;
+  --linen-dim: rgba(244,241,234,0.06);
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --glass-bg: rgba(11,37,69,0.52);
+  --glass-border: rgba(226,232,240,0.12);
+  --glass-shine: rgba(56,189,248,0.08);
+  --radius: 20px;
+  --radius-sm: 14px;
+  --radius-xs: 10px;
+  --font-display: 'Outfit', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ================================================================
+   1. RESET & BASE
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+a { color: inherit; text-decoration: none; }
+button { cursor: pointer; font-family: inherit; border: none; background: none; color: inherit; }
+img { display: block; max-width: 100%; }
+
+/* ================================================================
+   2. ATMOSPHERIC BACKGROUND — FROST DUNE TERRAIN & CURVES
+   ================================================================ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 120% 60% at 20% 100%, rgba(19,49,92,0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 100% 50% at 80% 90%, rgba(11,37,69,0.8) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 40% at 50% 70%, rgba(56,189,248,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 35% at 30% 85%, rgba(56,189,248,0.04) 0%, transparent 40%),
+    linear-gradient(175deg, #050e1a 0%, #07172c 35%, #0b2545 65%, #0a1e3d 100%);
+  pointer-events: none;
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 200% 80% at 50% 120%, rgba(56,189,248,0.03) 0%, transparent 50%);
+  pointer-events: none;
+  animation: driftGlow 12s ease-in-out infinite alternate;
+}
+@keyframes driftGlow {
+  0% { opacity: 0.4; transform: translateY(0); }
+  100% { opacity: 1; transform: translateY(-20px); }
+}
+
+/* ================================================================
+   3. CURSOR SPOTLIGHT OVERLAY
+   ================================================================ */
+#cursorSpotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  transition: background 0.15s ease;
+  background: radial-gradient(700px circle at -500px -500px, rgba(56,189,248,0.07), transparent 75%);
+}
+
+/* ================================================================
+   4. GLASSMORPHIC CONTAINERS (3D FROSTED ICE BLOCKS)
+   ================================================================ */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 16px 40px rgba(5,14,26,0.5), inset 0 1px 0 rgba(244,241,234,0.1);
+  border-radius: var(--radius);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.glass-elevated {
+  background: linear-gradient(145deg, rgba(19,49,92,0.65), rgba(11,37,69,0.75));
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(56,189,248,0.22);
+  box-shadow: 0 20px 50px rgba(5,14,26,0.6), inset 0 1px 0 rgba(244,241,234,0.15);
+  border-radius: var(--radius-sm);
+}
+
+/* Subtle Linen card accent */
+.card-linen-accent {
+  background: linear-gradient(145deg, rgba(244,241,234,0.05), rgba(11,37,69,0.5));
+  border: 1px solid rgba(244,241,234,0.18);
+}
+
+/* ================================================================
+   5. NAVIGATION TOPBAR (HEADER)
+   ================================================================ */
+.topbar {
+  position: sticky;
+  top: 14px;
+  z-index: 100;
+  max-width: 1440px;
+  margin: 16px auto 0;
+  padding: 12px 24px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 280px;
+}
+.brand-icon {
+  width: 42px; height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  border: 1px solid rgba(56,189,248,0.35);
+  background: linear-gradient(140deg, rgba(56,189,248,0.2), rgba(56,189,248,0.04));
+  color: var(--ice);
+  box-shadow: 0 0 20px rgba(56,189,248,0.15);
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.brand-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+.brand-title span { color: var(--ice); }
+.brand-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--linen);
+  opacity: 0.8;
+  text-transform: uppercase;
+}
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(7,23,44,0.6);
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+}
+.nav-tab {
+  padding: 8px 18px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all 0.25s ease;
+  letter-spacing: 0.01em;
+}
+.nav-tab:hover { color: var(--text-primary); background: rgba(56,189,248,0.08); }
+.nav-tab.active {
+  color: var(--ice);
+  background: rgba(56,189,248,0.12);
+  box-shadow: 0 0 12px rgba(56,189,248,0.15);
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.status-pill.model-online {
+  background: rgba(16,185,129,0.12);
+  border: 1px solid rgba(16,185,129,0.3);
+  color: #34d399;
+}
+.status-pill.live-stream.online {
+  background: rgba(56,189,248,0.12);
+  border: 1px solid rgba(56,189,248,0.3);
+  color: var(--ice);
+}
+.status-pill.live-stream.offline {
+  background: rgba(239,68,68,0.12);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #f87171;
+}
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  animation: pulseDot 2s infinite ease-in-out;
+}
+@keyframes pulseDot {
+  0%,100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.4); }
+}
+
+/* ================================================================
+   6. 3D FLOATING ICE CUBE CENTERPIECE
+   ================================================================ */
+.cube-scene {
+  width: 60px;
+  height: 60px;
+  perspective: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ice-cube {
+  width: 32px;
+  height: 32px;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: spinIceCube 14s infinite linear;
+}
+.cube-face {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background: rgba(56,189,248,0.08);
+  border: 1px solid rgba(56,189,248,0.35);
+  box-shadow: inset 0 0 10px rgba(56,189,248,0.2), 0 0 10px rgba(245,158,11,0.12);
+  backdrop-filter: blur(2px);
+}
+.cube-face.f-front  { transform: rotateY(0deg) translateZ(16px); }
+.cube-face.f-back   { transform: rotateY(180deg) translateZ(16px); }
+.cube-face.f-right  { transform: rotateY(90deg) translateZ(16px); }
+.cube-face.f-left   { transform: rotateY(-90deg) translateZ(16px); }
+.cube-face.f-top    { transform: rotateX(90deg) translateZ(16px); background: rgba(244,241,234,0.1); }
+.cube-face.f-bottom { transform: rotateX(-90deg) translateZ(16px); }
+@keyframes spinIceCube {
+  0% { transform: rotateX(20deg) rotateY(0deg); }
+  100% { transform: rotateX(20deg) rotateY(360deg); }
+}
+
+/* ================================================================
+   7. PAGE LAYOUT
+   ================================================================ */
+.page {
+  max-width: 1440px;
+  margin: 22px auto 60px;
+  padding: 0 24px;
+  position: relative;
+  z-index: 1;
+}
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ================================================================
+   8. HERO BANNER WITH REAL ICE PERCEPTION IMAGERY
+   ================================================================ */
+.hero-banner {
+  position: relative;
+  min-height: 140px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-end;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(to top, rgba(5,14,26,0.96) 0%, rgba(7,23,44,0.7) 50%, rgba(11,37,69,0.35) 100%),
+    url('assets/black_ice_hazard.jpg'),
+    url('https://images.unsplash.com/photo-1517662613602-4b8e02886571?w=1400&q=80');
+  background-size: cover;
+  background-position: center 60%;
+}
+.hero-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 26px 34px;
+}
+.hero-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.hero-text h2 {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 5px;
+}
+.hero-text h2 span { color: var(--ice); }
+.hero-text p {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  max-width: 580px;
+  line-height: 1.45;
+}
+.hero-badges {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--linen);
+  background: rgba(244,241,234,0.06);
+  border: 1px solid rgba(244,241,234,0.16);
+  backdrop-filter: blur(8px);
+}
+
+/* ================================================================
+   9. WORKBENCH GRID: VIEWPORT HUD + TELEMETRY DECISION MATRIX
+   ================================================================ */
+.workbench-grid {
+  display: grid;
+  grid-template-columns: 1.65fr 1fr;
+  gap: 22px;
+  margin-bottom: 24px;
+}
+@media (max-width: 1080px) {
+  .workbench-grid { grid-template-columns: 1fr; }
+}
+
+/* VIEWPORT HUD */
+.viewport-card { padding: 0; overflow: hidden; }
+.viewport-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.viewport-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.viewport-overline {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--linen);
+  opacity: 0.7;
+}
+.viewport-file {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.spectrum-tabs {
+  display: flex;
+  gap: 3px;
+  background: rgba(7,23,44,0.7);
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+}
+.spectrum-tab {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+.spectrum-tab:hover { color: var(--text-secondary); }
+.spectrum-tab.active {
+  color: var(--ice);
+  background: rgba(56,189,248,0.12);
+  box-shadow: 0 0 10px rgba(56,189,248,0.2);
+}
+
+/* Viewport screen 16:9 */
+.viewport-screen {
+  position: relative;
+  aspect-ratio: 16/9;
+  background: #02070f;
+  overflow: hidden;
+}
+.viewport-screen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.35s ease;
+}
+
+/* Spectrum Mode Filters */
+.viewport-screen.mode-thermal img {
+  filter: hue-rotate(185deg) contrast(1.4) saturate(2.3);
+}
+.viewport-screen.mode-edge img {
+  filter: invert(1) grayscale(1) contrast(2.6) brightness(0.9);
+}
+
+/* Thermal Heatmap HUD Scale */
+.thermal-legend {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 6;
+  background: rgba(7,23,44,0.88);
+  border: 1px solid rgba(56,189,248,0.3);
+  padding: 6px 10px;
+  border-radius: 8px;
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-primary);
+}
+.viewport-screen.mode-thermal .thermal-legend { display: flex; flex-direction: column; gap: 4px; }
+.thermal-bar {
+  width: 90px;
+  height: 8px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #1e3a8a, #38bdf8, #10b981, #f59e0b, #ef4444);
+}
+.thermal-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+}
+
+/* Edge LiDAR Rays Overlay */
+.lidar-scan-rays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  display: none;
+}
+.viewport-screen.mode-edge .lidar-scan-rays { display: block; }
+.lidar-fan-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Viewfinder corner reticles */
+.vf-corner {
+  position: absolute;
+  width: 26px; height: 26px;
+  border-color: var(--ice);
+  border-style: solid;
+  border-width: 0;
+  opacity: 0.75;
+  z-index: 4;
+}
+.vf-tl { top: 14px; left: 14px; border-top-width: 2px; border-left-width: 2px; }
+.vf-tr { top: 14px; right: 14px; border-top-width: 2px; border-right-width: 2px; }
+.vf-bl { bottom: 14px; left: 14px; border-bottom-width: 2px; border-left-width: 2px; }
+.vf-br { bottom: 14px; right: 14px; border-bottom-width: 2px; border-right-width: 2px; }
+
+/* Dynamic HUD Bounding Box */
+.hud-bbox {
+  position: absolute;
+  border: 2px solid #ef4444;
+  background: rgba(239, 68, 68, 0.14);
+  box-shadow: 0 0 24px rgba(239,68,68,0.45), inset 0 0 16px rgba(239,68,68,0.22);
+  z-index: 5;
+  pointer-events: none;
+  transition: all 0.35s cubic-bezier(0.16,1,0.3,1);
+  backdrop-filter: blur(1px);
+}
+.hud-bbox-tag {
+  position: absolute;
+  top: -26px;
+  left: -2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ef4444;
+  color: #050e1a;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.6);
+}
+.hud-bbox-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #050e1a;
+  animation: pulseDot 1.2s infinite;
+}
+
+.viewport-hud-label {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  z-index: 5;
+  background: rgba(7,23,44,0.85);
+  color: var(--ice);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(56,189,248,0.25);
+  backdrop-filter: blur(6px);
+}
+.viewport-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-muted);
+  z-index: 2;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(56,189,248,0.05), transparent 70%),
+    linear-gradient(135deg, #050e1a, #07172c);
+}
+.viewport-placeholder svg { opacity: 0.45; }
+.viewport-placeholder span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.viewport-placeholder small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.viewport-meta {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-top: 1px solid var(--glass-border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+/* Scan sweep line */
+.scan-sweep {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--ice), transparent);
+  opacity: 0.55;
+  z-index: 4;
+  animation: sweepDown 3.5s linear infinite;
+}
+@keyframes sweepDown {
+  0% { top: 0; opacity: 0; }
+  10% { opacity: 0.7; }
+  90% { opacity: 0.7; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* ================================================================
+   10. TELEMETRY & DECISION MATRIX (5 ELEVATED 3D TILES)
+   ================================================================ */
+.telemetry-stack { display: flex; flex-direction: column; gap: 14px; }
+
+/* 1. Road Status Banner */
+.condition-banner {
+  padding: 18px 22px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: 0.02em;
+  transition: all 0.4s ease;
+}
+.condition-banner.hazard {
+  background: linear-gradient(135deg, rgba(239,68,68,0.22), rgba(220,38,38,0.16));
+  border: 1px solid rgba(239,68,68,0.4);
+  color: #fca5a5;
+  box-shadow: 0 0 30px rgba(239,68,68,0.25);
+  animation: pulseHazard 2.2s infinite ease-in-out;
+}
+.condition-banner.warning {
+  background: linear-gradient(135deg, rgba(245,158,11,0.18), rgba(217,119,6,0.14));
+  border: 1px solid rgba(245,158,11,0.35);
+  color: #fcd34d;
+  box-shadow: 0 0 22px rgba(245,158,11,0.18);
+}
+.condition-banner.safe {
+  background: linear-gradient(135deg, rgba(16,185,129,0.16), rgba(5,150,105,0.12));
+  border: 1px solid rgba(16,185,129,0.32);
+  color: #6ee7b7;
+  box-shadow: 0 0 20px rgba(16,185,129,0.15);
+}
+@keyframes pulseHazard {
+  0%,100% { box-shadow: 0 0 20px rgba(239,68,68,0.2); }
+  50% { box-shadow: 0 0 45px rgba(239,68,68,0.45); }
+}
+
+/* Metric tiles grid */
+.metric-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.metric-tile {
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  background: rgba(7,23,44,0.55);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px);
+  transition: all 0.28s cubic-bezier(0.16,1,0.3,1);
+}
+.metric-tile:hover {
+  border-color: rgba(56,189,248,0.3);
+  box-shadow: 0 8px 26px rgba(56,189,248,0.12);
+  transform: translateY(-2px);
+}
+.metric-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--linen);
+  opacity: 0.75;
+  margin-bottom: 6px;
+}
+.metric-value {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+.metric-value.danger { color: #f87171; }
+.metric-value.cold { color: var(--ice); }
+.metric-unit {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+/* 2. Confidence circular gauge */
+.gauge-container {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gauge-ring {
+  width: 46px; height: 46px;
+  position: relative;
+  flex-shrink: 0;
+}
+.gauge-ring svg {
+  transform: rotate(-90deg);
+  width: 100%; height: 100%;
+}
+.gauge-ring circle {
+  transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+}
+.gauge-ring .bg { stroke: rgba(226,232,240,0.1); }
+.gauge-ring .fg { stroke: var(--safe); }
+.gauge-ring .fg.danger { stroke: var(--hazard); }
+.gauge-pct {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* 4. LiDAR Distance-Ray Graphic */
+.lidar-ray-graphic {
+  margin-top: 8px;
+  padding: 6px 4px 2px;
+}
+.lidar-ray-svg {
+  width: 100%;
+  height: 26px;
+  display: block;
+}
+.lidar-range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ================================================================
+   11. SYSTEM ARCHITECTURE & EXPLAINER (4 STEPS + GROUND TRUTH)
+   ================================================================ */
+.arch-container {
+  padding: 34px 38px;
+}
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--ice);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+}
+.section-desc {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  max-width: 680px;
+  line-height: 1.6;
+  margin-bottom: 26px;
+}
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 30px;
+}
+@media (max-width: 1024px) {
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .feature-grid { grid-template-columns: 1fr; }
+}
+.feature-card {
+  padding: 22px;
+  border-radius: var(--radius-sm);
+  background: rgba(11,37,69,0.45);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px);
+  transition: all 0.3s ease;
+  position: relative;
+}
+.feature-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(56,189,248,0.3);
+  box-shadow: 0 16px 40px rgba(56,189,248,0.12);
+  background: rgba(19,49,92,0.5);
+}
+.feature-card.accent {
+  background: linear-gradient(145deg, rgba(19,49,92,0.6), rgba(11,37,69,0.7));
+  border-color: rgba(56,189,248,0.25);
+}
+.feature-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.step-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ice);
+  background: rgba(56,189,248,0.12);
+  padding: 3px 10px;
+  border-radius: 9999px;
+}
+.feature-icon { font-size: 1.3rem; }
+.feature-card h3 {
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.feature-card p {
+  font-size: 0.86rem;
+  color: #b0c4d8;
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+.feature-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--linen);
+  opacity: 0.65;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Ground Truth Visual Comparison Gallery */
+.gallery-section {
+  margin-top: 32px;
+  padding-top: 28px;
+  border-top: 1px solid var(--glass-border);
+}
+.gallery-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 18px;
+}
+@media (max-width: 800px) {
+  .gallery-grid { grid-template-columns: 1fr; }
+}
+.gallery-card {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(7,23,44,0.6);
+  border: 1px solid var(--glass-border);
+  transition: all 0.3s ease;
+}
+.gallery-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(56,189,248,0.3);
+  box-shadow: 0 12px 30px rgba(5,14,26,0.6);
+}
+.gallery-img-wrap {
+  position: relative;
+  aspect-ratio: 16/10;
+  background: #030a14;
+  overflow: hidden;
+}
+.gallery-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+.gallery-card:hover .gallery-img-wrap img {
+  transform: scale(1.03);
+}
+.gallery-overlay-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  backdrop-filter: blur(8px);
+}
+.gallery-overlay-badge.hazard {
+  background: rgba(239,68,68,0.85);
+  color: #050e1a;
+  box-shadow: 0 0 14px rgba(239,68,68,0.5);
+}
+.gallery-overlay-badge.warning {
+  background: rgba(245,158,11,0.85);
+  color: #050e1a;
+  box-shadow: 0 0 14px rgba(245,158,11,0.5);
+}
+.gallery-info {
+  padding: 18px 20px;
+}
+.gallery-info h4 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+.gallery-info p {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.gallery-telemetry-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gt-pill {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(226,232,240,0.06);
+  border: 1px solid rgba(226,232,240,0.12);
+  color: var(--linen);
+}
+
+/* ================================================================
+   12. DIAGNOSTICS HARDWARE CARDS (3 SENSORS)
+   ================================================================ */
+.diag-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 20px;
+}
+@media (max-width: 900px) { .diag-grid { grid-template-columns: 1fr; } }
+.diag-card {
+  padding: 26px 22px;
+  border-radius: var(--radius-sm);
+  background: rgba(11,37,69,0.45);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px);
+  text-align: center;
+}
+.diag-icon {
+  font-size: 2.2rem;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 0 12px rgba(56,189,248,0.3));
+}
+.diag-name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.diag-status {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--safe);
+  margin-bottom: 12px;
+}
+.diag-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.diag-specs {
+  display: flex;
+  justify-content: space-around;
+  padding-top: 12px;
+  border-top: 1px solid rgba(226,232,240,0.08);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--linen);
+  opacity: 0.8;
+}
+
+/* ================================================================
+   13. HISTORY DATA TABLE
+   ================================================================ */
+.history-table-wrap {
+  margin-top: 20px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  background: rgba(11,37,69,0.4);
+  backdrop-filter: blur(14px);
+}
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.history-table th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--linen);
+  opacity: 0.75;
+  text-align: left;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(7,23,44,0.6);
+}
+.history-table td {
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(226,232,240,0.06);
+  color: var(--text-secondary);
+  transition: background 0.2s ease;
+}
+.history-table tr:hover td {
+  background: rgba(56,189,248,0.05);
+}
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.badge.hazard { background: rgba(239,68,68,0.15); color: #fca5a5; }
+.badge.warning { background: rgba(245,158,11,0.15); color: #fcd34d; }
+.badge.safe { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+
+/* ================================================================
+   14. FOOTER
+   ================================================================ */
+.site-footer {
+  max-width: 1440px;
+  margin: 40px auto 20px;
+  padding: 20px 24px;
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  position: relative;
+  z-index: 1;
+}
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.footer-brand strong { color: var(--text-secondary); }
+
+/* ================================================================
+   15. 3D PARALLAX TILT & CLICK RIPPLE
+   ================================================================ */
+.tilt-card {
+  transform-style: preserve-3d;
+  perspective: 800px;
+}
+.click-ripple {
+  position: fixed;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56,189,248,0.45) 0%, transparent 75%);
+  pointer-events: none;
+  z-index: 99999;
+  transform: scale(0);
+  animation: rippleOut 0.45s cubic-bezier(0,0,0.2,1) forwards;
+}
+@keyframes rippleOut {
+  to { transform: scale(4.5); opacity: 0; }
+}
+
+/* ================================================================
+   16. SCROLLBAR
+   ================================================================ */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(56,189,248,0.35); }
+</style>
+</head>
+<body>
+
+<!-- Dynamic Cursor Spotlight -->
+<div id="cursorSpotlight"></div>
+
+<!-- ================================================================
+     NAVIGATION TOPBAR (HEADER)
+     ================================================================ -->
+<header class="topbar glass">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
+        <path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20 4-4 4 4"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <div class="brand-title">BLACK ICE <span>DETECTION</span></div>
+      <div class="brand-sub">ROAD PERCEPTION INTELLIGENCE</div>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-panel="workbench">Workbench</button>
+    <button class="nav-tab" data-panel="architecture">Architecture</button>
+    <button class="nav-tab" data-panel="diagnostics">Diagnostics</button>
+    <button class="nav-tab" data-panel="history">Scan History</button>
+  </div>
+
+  <div class="topbar-right">
+    <div class="status-pill model-online">
+      <span class="status-dot"></span>
+      <span>Model Online (YOLOv8 + Thermal + LiDAR)</span>
+    </div>
+    <div id="connPill" class="status-pill live-stream offline">
+      <span class="status-dot"></span>
+      <span id="connText">Connecting...</span>
+    </div>
+  </div>
+</header>
+
+<!-- ================================================================
+     MAIN CONTENT
+     ================================================================ -->
+<div class="page">
+
+  <!-- ============================================================
+       PANEL 1: WORKBENCH (VIEWPORT + TELEMETRY MATRIX)
+       ============================================================ -->
+  <section id="workbench" class="panel active">
+
+    <!-- Hero Banner with 3D Ice Cube & Black Ice Imagery -->
+    <div class="hero-banner glass">
+      <div class="hero-bg"></div>
+      <div class="hero-content">
+        <div class="hero-left">
+          <div class="cube-scene">
+            <div class="ice-cube">
+              <div class="cube-face f-front"></div>
+              <div class="cube-face f-back"></div>
+              <div class="cube-face f-right"></div>
+              <div class="cube-face f-left"></div>
+              <div class="cube-face f-top"></div>
+              <div class="cube-face f-bottom"></div>
+            </div>
+          </div>
+          <div class="hero-text">
+            <h2>Real-time road safety, powered by <span>multi-sensor AI.</span></h2>
+            <p>Multi-spectral perception fusing 1080p vision, calibrated IR thermography, and 2D LiDAR depth to pinpoint invisible black ice.</p>
+          </div>
+        </div>
+        <div class="hero-badges">
+          <div class="hero-badge">&#9889; YOLOv8 Neural Vision</div>
+          <div class="hero-badge">&#10052; MLX90640 (&epsilon; = 0.95)</div>
+          <div class="hero-badge">&#128225; LiDAR Specular Association</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workbench Grid -->
+    <div class="workbench-grid">
+
+      <!-- LEFT: Live Road Viewport HUD -->
+      <div class="viewport-card glass">
+        <div class="viewport-header">
+          <div class="viewport-header-left">
+            <span class="viewport-overline">LIVE INSPECTION VIEW</span>
+            <span id="viewportFile" class="viewport-file">Awaiting vehicle feed...</span>
+          </div>
+          <div class="spectrum-tabs">
+            <button class="spectrum-tab active" data-mode="visible">Visible</button>
+            <button class="spectrum-tab" data-mode="thermal">Thermal</button>
+            <button class="spectrum-tab" data-mode="edge">Edge View</button>
+          </div>
+        </div>
+
+        <div id="viewportScreen" class="viewport-screen">
+          <div class="scan-sweep"></div>
+          <img id="viewportImage" src="" alt="Road Camera Stream" style="display:none;">
+          
+          <div id="viewportPlaceholder" class="viewport-placeholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12Z"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+            <span>Awaiting live road footage</span>
+            <small>Start the backend &amp; edge simulator to stream live data</small>
+          </div>
+
+          <!-- Dynamic HUD Bounding Box Overlay -->
+          <div id="viewportBbox" class="hud-bbox" style="display:none;">
+            <div class="hud-bbox-tag">
+              <span class="hud-bbox-dot"></span>
+              <span id="hudBboxLabel">BLACK ICE HAZARD 94.2% &middot; 11.8m</span>
+            </div>
+          </div>
+
+          <!-- Thermal Heatmap Scale Overlay -->
+          <div class="thermal-legend">
+            <span>IR TEMPERATURE</span>
+            <div class="thermal-bar"></div>
+            <div class="thermal-scale-labels">
+              <span>-10&deg;C</span><span>0&deg;C</span><span>+15&deg;C</span>
+            </div>
+          </div>
+
+          <!-- Edge LiDAR Planar Fan Rays SVG -->
+          <div class="lidar-scan-rays">
+            <svg class="lidar-fan-svg" viewBox="0 0 640 360">
+              <defs>
+                <linearGradient id="rayGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+                  <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.8"/>
+                  <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.05"/>
+                </linearGradient>
+              </defs>
+              <!-- Center emitter origin at bottom center -->
+              <circle cx="320" cy="350" r="6" fill="#38bdf8"/>
+              <!-- Sector Scan Fan Rays -->
+              <line x1="320" y1="350" x2="120" y2="60" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>
+              <line x1="320" y1="350" x2="220" y2="40" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+              <line x1="320" y1="350" x2="320" y2="30" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4 2" opacity="0.8"/>
+              <line x1="320" y1="350" x2="420" y2="40" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+              <line x1="320" y1="350" x2="520" y2="60" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>
+              <!-- Distance arcs -->
+              <path d="M 220 280 A 120 120 0 0 1 420 280" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.3"/>
+              <path d="M 160 210 A 200 200 0 0 1 480 210" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.3"/>
+              <path d="M 100 130 A 280 280 0 0 1 540 130" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.25"/>
+            </svg>
+          </div>
+
+          <!-- Viewfinder Reticles -->
+          <div class="vf-corner vf-tl"></div>
+          <div class="vf-corner vf-tr"></div>
+          <div class="vf-corner vf-bl"></div>
+          <div class="vf-corner vf-br"></div>
+          <div id="viewportHudLabel" class="viewport-hud-label">VISIBLE &middot; YOLOV8 DEEP INFERENCE</div>
+        </div>
+
+        <div class="viewport-meta">
+          <span id="metaTimestamp">Timestamp: &mdash;</span>
+          <span id="metaDevice">Device: &mdash;</span>
+        </div>
+      </div>
+
+      <!-- RIGHT: Core Telemetry & Decision Matrix (5 Metric Tiles) -->
+      <div class="telemetry-stack">
+
+        <!-- 1. Road Status Banner -->
+        <div id="condBanner" class="condition-banner safe glass-elevated">
+          &#9989; ROAD CLEAR &mdash; SURVEILLANCE ACTIVE
+        </div>
+
+        <!-- 2. Ice Confidence + 3. Surface Temperature -->
+        <div class="metric-row">
+          <div class="metric-tile tilt-card">
+            <div class="metric-label">ICE CONFIDENCE</div>
+            <div class="gauge-container">
+              <div class="gauge-ring">
+                <svg viewBox="0 0 36 36">
+                  <circle class="bg" cx="18" cy="18" r="15" fill="none" stroke-width="3"/>
+                  <circle id="gaugeArc" class="fg" cx="18" cy="18" r="15" fill="none" stroke-width="3"
+                          stroke-dasharray="94.25" stroke-dashoffset="94.25"/>
+                </svg>
+                <span id="gaugePct" class="gauge-pct">&mdash;</span>
+              </div>
+              <div>
+                <div id="confValue" class="metric-value">&mdash;</div>
+                <span class="metric-unit">probability</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="metric-tile tilt-card">
+            <div class="metric-label">SURFACE TEMPERATURE</div>
+            <div id="tempValue" class="metric-value cold">&mdash;</div>
+            <span class="metric-unit">MLX90640 calibrated (&epsilon; = 0.95)</span>
+          </div>
+        </div>
+
+        <!-- 4. LiDAR Distance + 5. Verification Status -->
+        <div class="metric-row">
+          <div class="metric-tile tilt-card">
+            <div class="metric-label">LIDAR DISTANCE</div>
+            <div id="distValue" class="metric-value">&mdash;</div>
+            <!-- Distance-ray Graphic -->
+            <div class="lidar-ray-graphic">
+              <svg viewBox="0 0 200 24" class="lidar-ray-svg">
+                <defs>
+                  <linearGradient id="lidarBeamGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.9"/>
+                    <stop offset="70%" stop-color="#38bdf8" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#ef4444" stop-opacity="0.9"/>
+                  </linearGradient>
+                </defs>
+                <circle cx="10" cy="12" r="3.5" fill="#38bdf8"/>
+                <line x1="14" y1="12" x2="190" y2="12" stroke="url(#lidarBeamGrad)" stroke-width="1.8" stroke-dasharray="3 2"/>
+                <circle id="lidarTargetPin" cx="90" cy="12" r="4.5" fill="#ef4444" stroke="#fca5a5" stroke-width="1.5"/>
+              </svg>
+              <div class="lidar-range-labels">
+                <span>0m</span><span>10m</span><span>20m</span><span>30m</span><span>40m</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="metric-tile tilt-card">
+            <div class="metric-label">VERIFICATION STATUS</div>
+            <div id="verifyValue" class="metric-value" style="font-size:1.05rem; margin-top:2px;">&mdash;</div>
+            <span class="metric-unit">multi-sensor validation</span>
+          </div>
+        </div>
+
+        <!-- Supplementary Tile: Patch Bounding Box -->
+        <div class="metric-tile tilt-card card-linen-accent">
+          <div class="metric-label">PATCH BOUNDING BOX [X1, Y1, X2, Y2]</div>
+          <div id="bboxValue" style="font-family:var(--font-mono); font-size:0.95rem; font-weight:600; color:var(--text-secondary); margin-top:4px;">
+            No localized patch
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       PANEL 2: ARCHITECTURE (4 STEPS + GROUND TRUTH GALLERY)
+       ============================================================ -->
+  <section id="architecture" class="panel">
+    <div class="arch-container glass">
+      <div class="section-label">BUILT FOR WINTER ROADS</div>
+      <div class="section-title">From raw multi-sensor signal to safer decisions.</div>
+      <div class="section-desc">
+        A transparent, verifiable 4-stage perception pipeline fusing high-resolution RGB vision, calibrated IR thermography, and planar LiDAR specular reflection analysis.
+      </div>
+
+      <!-- 4 Core Architecture Steps -->
+      <div class="feature-grid">
+        <article class="feature-card tilt-card">
+          <div class="feature-top"><span class="step-num">01</span><span class="feature-icon">&#128247;</span></div>
+          <h3>Spectral Ingestion</h3>
+          <p>Simultaneously ingests 1080p RGB video, MLX90640 32&times;24 IR thermography grids, and 2D planar LiDAR sweeps into a synchronized circular buffer.</p>
+          <span class="feature-tag">RGB &middot; THERMAL &middot; RANGE</span>
+        </article>
+
+        <article class="feature-card accent tilt-card">
+          <div class="feature-top"><span class="step-num">02</span><span class="feature-icon">&#127777;&#65039;</span></div>
+          <h3>Calibrated Screening</h3>
+          <p>Calibrates asphalt emissivity (&epsilon; = 0.95) and screens road temperature against the critical risk window [&minus;10&deg;C, +3&deg;C] to eliminate false alarms on warm wet roads.</p>
+          <span class="feature-tag">CALIBRATED RISK ENVELOPE</span>
+        </article>
+
+        <article class="feature-card tilt-card">
+          <div class="feature-top"><span class="step-num">03</span><span class="feature-icon">&#129504;</span></div>
+          <h3>YOLOv8 Vision Inference</h3>
+          <p>Runs custom-trained YOLOv8 neural network on incoming frames to detect subtle ice sheens, regressing precise patch bounding boxes and confidence scores.</p>
+          <span class="feature-tag">NEURAL OBJECT DETECTION</span>
+        </article>
+
+        <article class="feature-card accent tilt-card">
+          <div class="feature-top"><span class="step-num">04</span><span class="feature-icon">&#128225;</span></div>
+          <h3>LiDAR Specular Association</h3>
+          <p>Casts laser rays into the detected patch sector. Smooth glazed black ice deflects 905nm pulses away, causing zero-return specular dropouts that confirm hazard presence.</p>
+          <span class="feature-tag">SPECULAR DROPOUT SIGNATURE</span>
+        </article>
+      </div>
+
+      <!-- Perception Ground Truth Gallery (Black Ice Visuals) -->
+      <div class="gallery-section">
+        <div class="section-label">PERCEPTION GROUND TRUTH SIGNATURES</div>
+        <div class="section-title" style="font-size:1.45rem;">Black Ice Hazard vs. Wet Asphalt Discrimination</div>
+        <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:16px;">
+          How the multi-sensor pipeline differentiates life-threatening invisible black ice from harmless warm rainwater using synchronized thermal and LiDAR physics.
+        </p>
+
+        <div class="gallery-grid">
+          <!-- Card 1: Black Ice Hazard -->
+          <div class="gallery-card tilt-card">
+            <div class="gallery-img-wrap">
+              <img src="assets/black_ice_hazard.jpg" alt="Black Ice Hazard Detected" onerror="this.src='https://images.unsplash.com/photo-1517662613602-4b8e02886571?w=800&q=80'">
+              <span class="gallery-overlay-badge hazard">&#128680; CONFIRMED BLACK ICE</span>
+            </div>
+            <div class="gallery-info">
+              <h4>Glazed Sub-Zero Road Hazard</h4>
+              <p>Transparent ice layer seamlessly bonds over dark asphalt. Visual sheen alone is ambiguous, but MLX90640 records &minus;2.5&deg;C and LiDAR registers zero-return specular deflection.</p>
+              <div class="gallery-telemetry-pills">
+                <span class="gt-pill">Surface Temp: &minus;2.5&deg;C</span>
+                <span class="gt-pill">LiDAR: Specular Dropout</span>
+                <span class="gt-pill">Confidence: 94.2%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Glazed Wet Road -->
+          <div class="gallery-card tilt-card">
+            <div class="gallery-img-wrap">
+              <img src="assets/glazed_road.jpg" alt="Glazed Wet Road Surface" onerror="this.src='https://images.unsplash.com/photo-1491557345352-5929e343eb89?w=800&q=80'">
+              <span class="gallery-overlay-badge warning">&#9888;&#65039; WARM WET ROAD (FILTERED)</span>
+            </div>
+            <div class="gallery-info">
+              <h4>Liquid Water Surface Reflection</h4>
+              <p>Wet asphalt produces high optical glare resembling ice. The calibrated thermal filter verifies surface at +6.8&deg;C, safely discarding the false alarm before triggering actuation.</p>
+              <div class="gallery-telemetry-pills">
+                <span class="gt-pill">Surface Temp: +6.8&deg;C</span>
+                <span class="gt-pill">LiDAR: Normal Scatter</span>
+                <span class="gt-pill">Status: WARM_FILTERED</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       PANEL 3: DIAGNOSTICS (HARDWARE HEALTH)
+       ============================================================ -->
+  <section id="diagnostics" class="panel">
+    <div class="section-label">HARDWARE DIAGNOSTICS</div>
+    <div class="section-title">Vehicle sensor acquisition nodes.</div>
+    <div class="section-desc">Live operating parameters and calibration health of vehicle-mounted acquisition hardware.</div>
+
+    <div class="diag-grid">
+      <!-- Card 1: RGB Camera -->
+      <div class="diag-card glass tilt-card">
+        <div class="diag-icon">&#128247;</div>
+        <div class="diag-name">1080p RGB Camera</div>
+        <div class="diag-status">ONLINE</div>
+        <div class="diag-detail">1920&times;1080 @ 30 FPS<br>Horizontal FOV: 65&deg;<br>Aperture f/2.0 Wide Angle</div>
+        <div class="diag-specs">
+          <span>Interface: CSI-2</span>
+          <span>Latency: 12ms</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Thermal Sensor -->
+      <div class="diag-card glass tilt-card">
+        <div class="diag-icon">&#127777;&#65039;</div>
+        <div class="diag-name">MLX90640 Thermal Sensor</div>
+        <div class="diag-status">CALIBRATED</div>
+        <div class="diag-detail">32&times;24 IR Array (768 pixels)<br>Emissivity &epsilon; = 0.95 (Asphalt)<br>FOV: 55&deg; &times; 35&deg;</div>
+        <div class="diag-specs">
+          <span>Bus: I2C (400kHz)</span>
+          <span>Rate: 8 Hz</span>
+        </div>
+      </div>
+
+      <!-- Card 3: 2D LiDAR -->
+      <div class="diag-card glass tilt-card">
+        <div class="diag-icon">&#128225;</div>
+        <div class="diag-name">2D Planar LiDAR</div>
+        <div class="diag-status">TRACKING</div>
+        <div class="diag-detail">120&deg; Forward Sector &middot; 360 rays<br>Range: 0.2m &ndash; 40.0m<br>Wavelength: 905nm Infrared</div>
+        <div class="diag-specs">
+          <span>Interface: UART</span>
+          <span>Scan: 10 Hz</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       PANEL 4: SCAN HISTORY
+       ============================================================ -->
+  <section id="history" class="panel">
+    <div class="section-label">SAVED SCANS</div>
+    <div class="section-title">Session road inspection telemetry.</div>
+    <div class="section-desc">Scans logged during this vehicle monitoring session. Records update in real time.</div>
+
+    <div class="history-table-wrap">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th><th>Road Condition</th><th>Confidence</th><th>Surface Temp</th><th>Distance</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:40px;">No scans recorded yet. Connecting to vehicle feed...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<!-- Footer -->
+<footer class="site-footer">
+  <div class="footer-brand">
+    <span style="color:var(--ice);font-size:14px;">&#10052;</span>
+    <strong>BLACK ICE DETECTION</strong> &mdash; Road Perception Intelligence
+  </div>
+  <div>Calibrated Thermography &middot; LiDAR Specular Association &middot; YOLOv8 Deep Inference</div>
+</footer>
+
+<!-- ================================================================
+     JAVASCRIPT: WebSocket, HUD Bounding Box, Effects, Demo Mode
+     ================================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // ── DOM References ──
+  const spotlight       = document.getElementById('cursorSpotlight');
+  const connPill        = document.getElementById('connPill');
+  const connText        = document.getElementById('connText');
+  const condBanner      = document.getElementById('condBanner');
+  const viewportScreen  = document.getElementById('viewportScreen');
+  const viewportImg     = document.getElementById('viewportImage');
+  const viewportPH      = document.getElementById('viewportPlaceholder');
+  const viewportFile    = document.getElementById('viewportFile');
+  const hudLabel        = document.getElementById('viewportHudLabel');
+  const viewportBbox    = document.getElementById('viewportBbox');
+  const hudBboxLabel    = document.getElementById('hudBboxLabel');
+  const confValue       = document.getElementById('confValue');
+  const gaugePct        = document.getElementById('gaugePct');
+  const gaugeArc        = document.getElementById('gaugeArc');
+  const tempValue       = document.getElementById('tempValue');
+  const distValue       = document.getElementById('distValue');
+  const lidarTargetPin  = document.getElementById('lidarTargetPin');
+  const verifyValue     = document.getElementById('verifyValue');
+  const bboxValue       = document.getElementById('bboxValue');
+  const metaTS          = document.getElementById('metaTimestamp');
+  const metaDev         = document.getElementById('metaDevice');
+  const historyBody     = document.getElementById('historyBody');
+
+  const CIRCUMFERENCE = 2 * Math.PI * 15; // 94.25 for r=15
+
+  let activeSpectrum = 'visible';
+  let historyRows = [];
+
+  // ── 1. TAB NAVIGATION ──
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const targetPanel = document.getElementById(tab.dataset.panel);
+      if (targetPanel) targetPanel.classList.add('active');
+    });
+  });
+
+  // ── 2. SPECTRUM MODE TOGGLE BAR ──
+  document.querySelectorAll('.spectrum-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.spectrum-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      activeSpectrum = tab.dataset.mode;
+
+      // Update screen CSS filter class
+      viewportScreen.classList.remove('mode-thermal', 'mode-edge');
+      if (activeSpectrum === 'thermal') viewportScreen.classList.add('mode-thermal');
+      if (activeSpectrum === 'edge') viewportScreen.classList.add('mode-edge');
+
+      updateHudLabel();
+    });
+  });
+
+  function updateHudLabel() {
+    const labels = {
+      visible: 'VISIBLE \u00B7 YOLOV8 DEEP INFERENCE',
+      thermal: 'THERMAL \u00B7 MLX90640 CALIBRATED (\u03B5 = 0.95)',
+      edge: 'EDGE VIEW \u00B7 2D LIDAR PLANAR SCAN RAYS'
+    };
+    hudLabel.textContent = labels[activeSpectrum] || 'VISIBLE \u00B7 REAL-TIME ROAD PERCEPTION';
+  }
+
+  // ── 3. DYNAMIC CURSOR SPOTLIGHT (COLOR SHIFTING) ──
+  document.addEventListener('pointermove', (e) => {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    let color = '56,189,248'; // Ice cyan default
+    if (el) {
+      const closest = el.closest('.condition-banner, .badge, .hud-bbox');
+      if (closest) {
+        if (closest.classList.contains('hazard') || closest.classList.contains('hud-bbox')) {
+          color = '239,68,68'; // Hazard vivid red
+        } else if (closest.classList.contains('warning')) {
+          color = '245,158,11'; // Warning amber
+        } else if (closest.classList.contains('safe')) {
+          color = '16,185,129'; // Safe emerald
+        }
+      }
+    }
+    spotlight.style.background = `radial-gradient(700px circle at ${e.clientX}px ${e.clientY}px, rgba(${color},0.08), transparent 72%)`;
+  });
+
+  // ── 4. CLICK RIPPLE & REFRACTION ──
+  document.addEventListener('click', (e) => {
+    const ripple = document.createElement('div');
+    ripple.className = 'click-ripple';
+    ripple.style.left = (e.clientX - 22) + 'px';
+    ripple.style.top = (e.clientY - 22) + 'px';
+    document.body.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 480);
+  });
+
+  // ── 5. 3D PARALLAX TILT ──
+  document.querySelectorAll('.tilt-card').forEach(card => {
+    card.addEventListener('pointermove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = (e.clientX - cx) / (rect.width / 2);
+      const dy = (e.clientY - cy) / (rect.height / 2);
+      card.style.transform = `perspective(800px) rotateY(${dx * 4}deg) rotateX(${-dy * 4}deg) translateZ(4px)`;
+    });
+    card.addEventListener('pointerleave', () => {
+      card.style.transform = 'perspective(800px) rotateY(0) rotateX(0) translateZ(0)';
+    });
+  });
+
+  // ── 6. TELEMETRY UPDATE ENGINE ──
+  function updateUI(data) {
+    if (!data) return;
+
+    // 1. Road Condition Banner
+    if (data.road_condition === 'BLACK_ICE_HAZARD') {
+      condBanner.className = 'condition-banner hazard glass-elevated';
+      condBanner.innerHTML = '&#128680; BLACK ICE HAZARD DETECTED';
+    } else if (data.road_condition && data.road_condition.includes('WET')) {
+      condBanner.className = 'condition-banner warning glass-elevated';
+      condBanner.innerHTML = '&#9888;&#65039; WET ROAD &mdash; NO ICE';
+    } else {
+      condBanner.className = 'condition-banner safe glass-elevated';
+      condBanner.innerHTML = '&#9989; ROAD CLEAR &mdash; SURVEILLANCE ACTIVE';
+    }
+
+    // 2. Ice Confidence
+    const conf = data.ice_confidence != null ? data.ice_confidence : 0;
+    const pct = (conf * 100).toFixed(1);
+    confValue.textContent = pct + '%';
+    gaugePct.textContent = Math.round(conf * 100);
+    const offset = CIRCUMFERENCE - (conf * CIRCUMFERENCE);
+    gaugeArc.style.strokeDashoffset = offset;
+    if (conf > 0.6) {
+      gaugeArc.classList.add('danger');
+      confValue.classList.add('danger');
+    } else {
+      gaugeArc.classList.remove('danger');
+      confValue.classList.remove('danger');
+    }
+
+    // 3. Surface Temperature
+    const temp = data.surface_temp_c;
+    tempValue.textContent = temp != null ? temp.toFixed(1) + '\u00B0C' : '\u2014';
+    tempValue.className = 'metric-value' + (temp != null && temp < 3 ? ' cold' : '');
+
+    // 4. LiDAR Distance & Animated Distance-Ray Target Pin
+    const dist = data.estimated_distance_m;
+    distValue.textContent = dist != null ? dist.toFixed(1) + ' m' : '\u2014';
+    if (lidarTargetPin && dist != null) {
+      // Map 0m - 40m to x: 14 to 185
+      const clampedDist = Math.max(0, Math.min(40, dist));
+      const pinX = 14 + (clampedDist / 40.0) * (185 - 14);
+      lidarTargetPin.setAttribute('cx', pinX.toFixed(1));
+    }
+
+    // 5. Verification Status
+    verifyValue.textContent = data.uncertainty_status || '\u2014';
+    verifyValue.style.color = (data.uncertainty_status === 'CONFIRMED_HAZARD') ? '#f87171' : '#34d399';
+
+    // 6. Viewport HUD Bounding Box
+    if (data.patch_bbox && data.patch_bbox.length === 4 && data.road_condition === 'BLACK_ICE_HAZARD') {
+      const [x1, y1, x2, y2] = data.patch_bbox;
+      bboxValue.textContent = `[${x1}, ${y1}, ${x2}, y2]`;
+      bboxValue.style.color = '#e2e8f0';
+
+      // Assume typical 640x480 or calculate percentages
+      const leftPct = Math.max(0, Math.min(90, (x1 / 640) * 100));
+      const topPct = Math.max(0, Math.min(90, (y1 / 480) * 100));
+      const widthPct = Math.max(5, Math.min(100 - leftPct, ((x2 - x1) / 640) * 100));
+      const heightPct = Math.max(5, Math.min(100 - topPct, ((y2 - y1) / 480) * 100));
+
+      viewportBbox.style.left = leftPct.toFixed(1) + '%';
+      viewportBbox.style.top = topPct.toFixed(1) + '%';
+      viewportBbox.style.width = widthPct.toFixed(1) + '%';
+      viewportBbox.style.height = heightPct.toFixed(1) + '%';
+      viewportBbox.style.display = 'block';
+
+      const distLabel = dist != null ? `${dist.toFixed(1)}m` : 'NEAR';
+      hudBboxLabel.textContent = `BLACK ICE HAZARD ${pct}% \u00B7 ${distLabel}`;
+    } else {
+      viewportBbox.style.display = 'none';
+      bboxValue.textContent = 'No localized patch';
+      bboxValue.style.color = 'var(--text-muted)';
+    }
+
+    // 7. Viewport Camera Stream Frame
+    if (data.image_base64) {
+      viewportImg.src = data.image_base64;
+      viewportImg.style.display = 'block';
+      viewportPH.style.display = 'none';
+    }
+
+    // 8. Viewport Metadata
+    metaTS.textContent = 'Timestamp: ' + (data.timestamp || '\u2014');
+    metaDev.textContent = 'Device: ' + (data.device_id || 'Vehicle-Pi4-Front');
+    viewportFile.textContent = (data.device_id || 'Vehicle-Pi4-Front') + ' \u00B7 Live 1080p Stream';
+
+    // 9. Session History
+    historyRows.push(data);
+    if (historyRows.length > 50) historyRows.shift();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (historyRows.length === 0) return;
+    let html = '';
+    for (let i = historyRows.length - 1; i >= Math.max(0, historyRows.length - 20); i--) {
+      const d = historyRows[i];
+      let badgeClass = 'safe';
+      let badgeText = 'CLEAR';
+      if (d.road_condition === 'BLACK_ICE_HAZARD') { badgeClass = 'hazard'; badgeText = 'HAZARD'; }
+      else if (d.road_condition && d.road_condition.includes('WET')) { badgeClass = 'warning'; badgeText = 'WET'; }
+      html += '<tr>' +
+        '<td>' + (d.timestamp || '\u2014') + '</td>' +
+        '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+        '<td>' + ((d.ice_confidence || 0) * 100).toFixed(1) + '%</td>' +
+        '<td>' + (d.surface_temp_c != null ? d.surface_temp_c.toFixed(1) + '\u00B0C' : '\u2014') + '</td>' +
+        '<td>' + (d.estimated_distance_m != null ? d.estimated_distance_m.toFixed(1) + ' m' : '\u2014') + '</td>' +
+        '<td style="color:' + (d.uncertainty_status === 'CONFIRMED_HAZARD' ? '#fca5a5' : '#6ee7b7') + '">' + (d.uncertainty_status || '\u2014') + '</td>' +
+        '</tr>';
+    }
+    historyBody.innerHTML = html;
+  }
+
+  // ── 7. WEBSOCKET CONNECTION ENGINE ──
+  const WS_URL = 'ws://localhost:8000/ws/live';
+  let ws = null;
+
+  function connectWS() {
+    try {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => {
+        connPill.className = 'status-pill live-stream online';
+        connText.textContent = 'LIVE STREAM CONNECTED';
+      };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          updateUI(data);
+        } catch (err) {
+          console.error('Parse error:', err);
+        }
+      };
+      ws.onerror = () => {};
+      ws.onclose = () => {
+        connPill.className = 'status-pill live-stream offline';
+        connText.textContent = 'DISCONNECTED (RECONNECTING)';
+        setTimeout(connectWS, 2500);
+      };
+    } catch (e) {
+      setTimeout(connectWS, 3000);
+    }
+  }
+
+  connectWS();
+
+  // ── 8. DEMO MODE WITH REAL ROAD VISUALS ──
+  let demoTimer = null;
+  let demoIndex = 0;
+  const DEMO_DATA = [
+    {
+      road_condition: 'BLACK_ICE_HAZARD',
+      ice_confidence: 0.942,
+      surface_temp_c: -2.5,
+      estimated_distance_m: 11.8,
+      uncertainty_status: 'CONFIRMED_HAZARD',
+      patch_bbox: [130, 200, 510, 440],
+      device_id: 'Vehicle-Pi4-Front',
+      timestamp: '2026-10-27 21:20:05',
+      image_base64: 'assets/black_ice_hazard.jpg'
+    },
+    {
+      road_condition: 'WET_ROAD_NO_ICE',
+      ice_confidence: 0.32,
+      surface_temp_c: 6.8,
+      estimated_distance_m: 15.6,
+      uncertainty_status: 'WARM_SURFACE_FILTERED',
+      patch_bbox: null,
+      device_id: 'Vehicle-Pi4-Front',
+      timestamp: '2026-10-27 21:20:07',
+      image_base64: 'assets/glazed_road.jpg'
+    },
+    {
+      road_condition: 'BLACK_ICE_HAZARD',
+      ice_confidence: 0.884,
+      surface_temp_c: -3.8,
+      estimated_distance_m: 8.4,
+      uncertainty_status: 'CONFIRMED_HAZARD',
+      patch_bbox: [180, 160, 490, 410],
+      device_id: 'Vehicle-Pi4-Front',
+      timestamp: '2026-10-27 21:20:09',
+      image_base64: 'assets/black_ice_hazard.jpg'
+    },
+    {
+      road_condition: 'ROAD_CLEAR',
+      ice_confidence: 0.04,
+      surface_temp_c: 14.2,
+      estimated_distance_m: null,
+      uncertainty_status: 'WARM_SURFACE_FILTERED',
+      patch_bbox: null,
+      device_id: 'Vehicle-Pi4-Front',
+      timestamp: '2026-10-27 21:20:11',
+      image_base64: 'assets/glazed_road.jpg'
+    }
+  ];
+
+  function startDemo() {
+    if (demoTimer) return;
+    // Initial feed
+    updateUI(DEMO_DATA[0]);
+    demoIndex = 1;
+
+    demoTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        clearInterval(demoTimer);
+        demoTimer = null;
+        return;
+      }
+      updateUI(DEMO_DATA[demoIndex % DEMO_DATA.length]);
+      demoIndex++;
+    }, 2400);
+  }
+
+  // Auto-launch demo mode after 3 seconds if local backend server is not running
+  setTimeout(() => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      connText.textContent = 'Demo Mode (Offline)';
+      startDemo();
+    }
+  }, 3000);
+
+})();
+</script>
+</body>
+</html>

@@ -16,7 +16,7 @@ def train_model(
     epochs: int = 100,
     batch_size: int = 16,
     img_size: int = 640,
-    device: str = "cuda",
+    device: str = "cuda:0",
     project: str = "models/checkpoints",
     name: str = "black_ice",
     **kwargs
@@ -40,17 +40,24 @@ def train_model(
     print("=" * 60)
 
     # Check device availability
-    if device == "cuda" and not torch.cuda.is_available():
+    if device.startswith("cuda") and not torch.cuda.is_available():
         print("⚠ CUDA not available, switching to CPU")
         device = "cpu"
     elif device == "mps" and not torch.backends.mps.is_available():
         print("⚠ MPS not available, switching to CPU")
         device = "cpu"
 
-    print(f"Device: {device}")
-    if device == "cuda":
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
-        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+    if device.startswith("cuda") and torch.cuda.is_available():
+        gpu_count = torch.cuda.device_count()
+        gpu_idx = int(device.split(":")[1]) if ":" in device else 0
+        if gpu_idx >= gpu_count:
+            print(f"⚠ Requested {device}, but found {gpu_count} GPU(s). Auto-selecting cuda:0 ({torch.cuda.get_device_name(0)})")
+            gpu_idx = 0
+            device = "cuda:0"
+        print(f"Device: {device} (GPU [{gpu_idx}]: {torch.cuda.get_device_name(gpu_idx)})")
+        print(f"GPU Memory: {torch.cuda.get_device_properties(gpu_idx).total_memory / 1024**3:.2f} GB")
+    else:
+        print(f"Device: {device}")
 
     # Load model
     print(f"\nLoading model: {model_name}")
@@ -167,8 +174,8 @@ def main():
     parser.add_argument(
         "--device",
         type=str,
-        default="cuda",
-        help="Device (cuda/cpu/mps)"
+        default="cuda:0",
+        help="Device (cuda:0, cuda:1, cpu, mps) — default cuda:1 = RTX 3050"
     )
 
     # Output

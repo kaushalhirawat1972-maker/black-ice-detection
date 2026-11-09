@@ -20,11 +20,12 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Virtual Environments
 venv/
 env/
 ENV/
 .venv
+yolo-env/
 
 # IDEs
 .vscode/
@@ -38,24 +39,26 @@ ENV/
 .ipynb_checkpoints
 *.ipynb_checkpoints
 
-# Data - ignore entire data directory except structure
+# Data - too large for GitHub
 data/
 !data/.gitkeep
 
-# Models
-#models/checkpoints/
-#models/exported/*.onnx
-#models/exported/*.engine
-#*.pt
-#*.pth
-#*.weights
+# Models - excluded (files are 100MB+, too large for GitHub)
+models/checkpoints/
+models/exported/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.weights
+runs/
 
 # Logs
 logs/*.db
 logs/*.log
 *.log
 
-# Environment
+# Environment files (contain secrets/local URLs)
 .env
 .env.local
 
@@ -70,3 +73,9 @@ htmlcov/
 # Temporary files
 *.tmp
 temp/
+scratch/
+tmp/
+
+# Frontend build output and dependencies
+black-ice-frontend/frontend/node_modules/
+black-ice-frontend/frontend/.next/

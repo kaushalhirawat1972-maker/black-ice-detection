@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BLACK ICE DETECTION - Live Telemetry Test Client</title>
+  <style>
+    :root {
+      --bg: #07172c;
+      --card: #0b2545;
+      --ice: #38bdf8;
+      --hazard: #ef4444;
+      --safe: #10b981;
+      --text: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 30px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid rgba(226,232,240,0.15); padding-bottom: 15px; }
+    h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    h1 span { color: var(--ice); }
+    .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+    .connected { background: rgba(16,185,129,0.2); color: var(--safe); border: 1px solid var(--safe); }
+    .disconnected { background: rgba(239,68,68,0.2); color: var(--hazard); border: 1px solid var(--hazard); }
+    .grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
+    .card { background: var(--card); border-radius: 16px; padding: 20px; border: 1px solid rgba(56,189,248,0.2); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    .viewport { width: 100%; min-height: 380px; background: #000; border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+    .viewport img { width: 100%; height: auto; display: block; object-fit: contain; }
+    .telemetry-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+    .tile { background: rgba(7,23,44,0.6); padding: 14px; border-radius: 10px; border: 1px solid rgba(226,232,240,0.1); }
+    .tile-label { font-size: 11px; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .tile-val { font-size: 24px; font-weight: 800; color: #fff; }
+    .hazard-banner { padding: 16px; border-radius: 12px; font-weight: 800; font-size: 18px; text-align: center; margin-bottom: 15px; }
+    .hazard-danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; box-shadow: 0 0 25px rgba(239,68,68,0.5); }
+    .hazard-safe { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+    .actuator-box { background: rgba(56,189,248,0.1); border: 1px solid var(--ice); border-radius: 10px; padding: 15px; }
+    .btn { background: var(--ice); color: #07172c; font-weight: 700; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>BLACK ICE <span>DETECTION</span></h1>
+    <div id="connStatus" class="status-badge disconnected">Connecting to ws://localhost:8000/ws/live...</div>
+  </div>
+
+  <div class="grid">
+    <!-- Camera Viewport -->
+    <div class="card">
+      <h3 style="margin-bottom: 12px; font-size: 15px; color: var(--ice);">LIVE VEHICLE HUD VIEWPORT</h3>
+      <div class="viewport">
+        <img id="cameraFeed" alt="Awaiting video stream from edge node..." />
+      </div>
+      <div style="margin-top: 10px; font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between;">
+        <span id="timestampText">Timestamp: —</span>
+        <span id="deviceText">Device: —</span>
+      </div>
+    </div>
+
+    <!-- Telemetry Cards -->
+    <div class="card">
+      <div id="conditionBanner" class="hazard-banner hazard-safe">AWAITING TELEMETRY</div>
+
+      <div class="telemetry-row">
+        <div class="tile">
+          <div class="tile-label">ICE CONFIDENCE</div>
+          <div id="confVal" class="tile-val">—</div>
+        </div>
+        <div class="tile">
+          <div class="tile-label">ROAD SURFACE TEMP</div>
+          <div id="tempVal" class="tile-val">—</div>
+        </div>
+      </div>
+
+      <div class="telemetry-row">
+        <div class="tile">
+          <div class="tile-label">LIDAR DISTANCE</div>
+          <div id="distVal" class="tile-val">—</div>
+        </div>
+        <div class="tile">
+          <div class="tile-label">UNCERTAINTY STATUS</div>
+          <div id="uncertaintyVal" class="tile-val" style="font-size: 16px;">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const wsUrl = "ws://localhost:8000/ws/live";
+    const connStatus = document.getElementById("connStatus");
+    const cameraFeed = document.getElementById("cameraFeed");
+    const conditionBanner = document.getElementById("conditionBanner");
+    const confVal = document.getElementById("confVal");
+    const tempVal = document.getElementById("tempVal");
+    const distVal = document.getElementById("distVal");
+    const uncertaintyVal = document.getElementById("uncertaintyVal");
+    const actuatorStatus = document.getElementById("actuatorStatus");
+    const sprayDetails = document.getElementById("sprayDetails");
+    const timestampText = document.getElementById("timestampText");
+    const deviceText = document.getElementById("deviceText");
+
+    function connect() {
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        connStatus.className = "status-badge connected";
+        connStatus.textContent = "CONNECTED (WebSocket Live)";
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.image_base64) {
+            cameraFeed.src = data.image_base64;
+          }
+
+          timestampText.textContent = "Timestamp: " + (data.timestamp || "—");
+          deviceText.textContent = "Device: " + (data.device_id || "—");
+
+          // Condition Banner
+          if (data.road_condition === "BLACK_ICE_HAZARD") {
+            conditionBanner.className = "hazard-banner hazard-danger";
+            conditionBanner.textContent = "🚨 BLACK ICE HAZARD DETECTED";
+          } else if (data.road_condition && data.road_condition.includes("WET")) {
+            conditionBanner.className = "hazard-banner";
+            conditionBanner.style.background = "#f59e0b";
+            conditionBanner.textContent = "⚠️ WET ROAD — NO ICE";
+          } else {
+            conditionBanner.className = "hazard-banner hazard-safe";
+            conditionBanner.textContent = "✅ ROAD CLEAR — NO HAZARD";
+          }
+
+          // Telemetry
+          confVal.textContent = data.ice_confidence !== undefined ? (data.ice_confidence * 100).toFixed(1) + "%" : "—";
+          tempVal.textContent = data.surface_temp_c !== undefined ? data.surface_temp_c.toFixed(1) + " °C" : "—";
+          distVal.textContent = data.estimated_distance_m !== undefined ? data.estimated_distance_m.toFixed(1) + " m" : "—";
+          uncertaintyVal.textContent = data.uncertainty_status || "NORMAL";
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => {
+        connStatus.className = "status-badge disconnected";
+        connStatus.textContent = "DISCONNECTED (Retrying in 2s...)";
+        setTimeout(connect, 2000);
+      };
+    }
+
+    connect();
+  </script>
+</body>
+</html>
