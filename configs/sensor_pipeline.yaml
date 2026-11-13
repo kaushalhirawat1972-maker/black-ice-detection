@@ -1,0 +1,36 @@
+# Multi-Sensor Black Ice Pipeline Configuration
+sensors:
+  camera:
+    source: 0
+    width: 640
+    height: 480
+    fps: 30
+
+  mlx90640:
+    i2c_bus: 1
+    i2c_address: 0x33
+    refresh_rate_hz: 4
+    emissivity: 0.95
+    road_roi_row_start: 10
+    road_roi_row_end: 24
+
+  lidar:
+    port: "/dev/ttyUSB0"   # Linux/RPi default serial port (use COM3 on Windows)
+    baudrate: 115200
+    timeout: 1.0
+
+temperature_screening:
+  min_risk_temp_c: -10.0
+  max_risk_temp_c: 3.0
+  critical_min_c: -3.0
+  critical_max_c: 1.0
+  emissivity: 0.95
+
+lidar_association:
+  max_association_distance_m: 30.0
+  specular_dropout_threshold: 0.70
+
+fusion:
+  wet_road_temp_cutoff_c: 3.0
+  high_confidence_threshold: 0.75
+  medium_confidence_threshold: 0.40
