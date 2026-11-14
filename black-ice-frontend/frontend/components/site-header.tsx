@@ -49,7 +49,7 @@ function NavTabs({ layoutId, className }: { layoutId: string; className?: string
 }
 
 export function SiteHeader() {
-  const { connected } = useTelemetry()
+  const { connected, live } = useTelemetry()
   const { navigate } = useViewRouter()
 
   return (
@@ -75,9 +75,17 @@ export function SiteHeader() {
           <NavTabs layoutId="nav-active" />
         </nav>
 
-        <p className="hidden text-xs font-medium text-navy/80 md:block">
-          {connected ? '🟢 Live Edge Stream' : '🟡 Model Sample Demonstration'}
-        </p>
+        <div className="hidden items-center gap-2 md:flex">
+          <span
+            className={cn(
+              'size-2.5 rounded-full',
+              !live ? 'bg-amber-500' : connected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
+            )}
+          />
+          <p className="text-xs font-medium text-navy/80">
+            {!live ? 'Model Paused' : connected ? 'Model Active (Live Stream)' : 'Model Sample Demonstration'}
+          </p>
+        </div>
       </div>
 
       <nav aria-label="Sections" className="mx-auto max-w-7xl overflow-x-auto border-t border-white/5 px-5 lg:hidden">

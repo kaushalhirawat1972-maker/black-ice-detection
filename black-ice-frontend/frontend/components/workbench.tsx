@@ -44,17 +44,6 @@ export function Workbench() {
             description="Forward camera feed with fused HUD overlays. Switch spectrum to inspect thermal anomalies or LiDAR specular dropout."
           />
           <Reveal className="flex flex-wrap items-center gap-2" delay={0.1}>
-            <div className="flex items-center gap-2 rounded-sm border border-navy/15 bg-white/60 px-3 py-2 font-mono text-xs backdrop-blur">
-              <span
-                className={cn(
-                  'size-2 rounded-full',
-                  !live ? 'bg-amber-500' : connected ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500 animate-pulse'
-                )}
-              />
-              <span className="font-semibold text-navy">
-                {!live ? 'PAUSED' : connected ? 'MODEL ACTIVE' : 'DEMO MODE'}
-              </span>
-            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -65,7 +54,7 @@ export function Workbench() {
             <button
               onClick={() => fileInputRef.current?.click()}
               title="Upload an arbitrary road image to evaluate"
-              className="inline-flex items-center gap-1.5 rounded-sm bg-ice px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-ice-deep"
+              className="inline-flex items-center gap-1.5 rounded-sm border border-navy/20 bg-white/50 px-3.5 py-2.5 text-sm font-semibold text-navy backdrop-blur transition-all duration-200 hover:bg-white/80"
             >
               <Upload className="size-4" aria-hidden />
               Upload Image
