@@ -1,5 +1,6 @@
 'use client'
 
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   SAMPLE_HISTORY,
@@ -71,21 +72,21 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
             const data = JSON.parse(event.data) as Partial<TelemetryFrame> & { spectrum_mode?: SpectrumMode }
             if (data.spectrum_mode) setSpectrumModeState(data.spectrum_mode)
             setFrame((prev) => ({ ...prev, ...data, timestamp: data.timestamp ?? formatTimestamp(new Date()) }))
-          } catch {
+       catch {
             // ignore malformed frames
-          }
-        }
+      
+    
         ws.onclose = () => {
           setConnected(false)
           if (!closed) retry = setTimeout(connect, 3000)
-        }
+    
         ws.onerror = () => {
           setConnected(false)
-        }
-      } catch {
+    
+   catch {
         setConnected(false)
-      }
-    }
+  
+
     connect()
 
     return () => {
@@ -93,7 +94,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(retry)
       socketRef.current?.close()
       socketRef.current = null
-    }
+
   }, [live])
 
   // Simulator / Demo fallback: runs when live is on and WebSocket is not actively delivering frames
@@ -107,10 +108,10 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
           ...curr,
           ...base,
           timestamp: formatTimestamp(new Date()),
-        }))
+    ))
         return next
-      })
-    }, 3200)
+  )
+, 3200)
     return () => clearInterval(id)
   }, [connected, live])
 
@@ -122,9 +123,9 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
         ...curr,
         ...base,
         timestamp: formatTimestamp(new Date()),
-      }))
+  ))
       return next
-    })
+)
   }, [])
 
   const setSpectrumMode = useCallback((mode: SpectrumMode) => {
@@ -132,7 +133,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     const ws = socketRef.current
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'set_spectrum_mode', spectrum_mode: mode }))
-    }
+
   }, [])
 
   const toggleLive = useCallback(() => {
@@ -140,7 +141,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       const next = !prev
       if (!WS_URL) setConnected(next)
       return next
-    })
+)
   }, [])
 
   const saveScan = useCallback(() => {
@@ -153,7 +154,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
         surface_temp: frame.surface_temp,
         lidar_distance: frame.lidar_distance,
         verification_status: frame.verification_status,
-      },
+  ,
       ...prev,
     ])
   }, [frame])
@@ -172,7 +173,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       bbox: null,
       device: `Evaluating: ${fileName}`,
       timestamp: formatTimestamp(new Date()),
-    }))
+))
 
     // Candidate API URLs: order based on protocol to prevent mixed content blocking on HTTPS
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
@@ -190,19 +191,23 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     let failureDetail: string | null = null
 
     for (const url of apiEndpoints) {
+    // Try a few times for each endpoint to survive cold‑starts and transient network hiccups
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 12000)
+        const controller = new AbortController();
+        // Give generous overall time (up to 2 min) per attempt; abort if it exceeds.
+        const timeout = setTimeout(() => controller.abort(), 120000);
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image_base64: dataUrl, conf_threshold: 0.25 }),
           signal: controller.signal,
-        })
-        clearTimeout(timeout)
+    );
+        clearTimeout(timeout);
 
         if (res.ok) {
-          const data = await res.json()
+          const data = await res.json();
           if (!data.error) {
             setFrame((prev) => ({
               ...prev,
@@ -215,33 +220,41 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
               image_base64: dataUrl,
               device: fileName,
               timestamp: data.timestamp || formatTimestamp(new Date()),
-            }))
-            evaluated = true
-            break
-          } else {
-            failureDetail = data.error
-          }
-        } else {
-          failureDetail = `Backend HTTP status ${res.status}`
-        }
-      } catch (err: any) {
-        // Continue to fallback
+        ));
+            evaluated = true;
+            break; // success – exit attempts loop
+       else {
+            failureDetail = data.error;
+      
+     else {
+          failureDetail = `Backend HTTP status ${res.status}`;
+    
+   catch (err: any) {
         if (err?.name === 'AbortError') {
-          failureDetail = 'Request timed out (Render free tier may take ~30s to wake up)'
-        }
-      }
-    }
+          failureDetail = 'Request timed out (Render free tier may take ~30s to wake up)';
+    
+        // If not last attempt, wait a bit before retrying
+        if (attempt < maxAttempts) {
+          await new Promise(r => setTimeout(r, 5000));
+          continue;
+    
+  
+
+    if (evaluated) break; // exit endpoint loop if succeeded
+  }
+
+
 
     setEvaluating(false)
     if (!evaluated) {
       if (failureDetail) {
         setEvalError(`Model service error: ${failureDetail}`)
-      } else if (isHttps) {
+   else if (isHttps) {
         setEvalError("Cloud backend is waking up or offline. If newly deployed, Render takes ~35s to boot. You can also run locally on http://localhost:3000.")
-      } else {
+   else {
         setEvalError("Model backend offline. Run 'python run_backend.py' in your terminal to evaluate custom images live.")
-      }
-    }
+  
+
   }, [])
 
   const value = useMemo(
@@ -259,7 +272,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       uploadCustomImage,
       evaluating,
       evalError,
-    }),
+),
     [
       frame,
       spectrumMode,
