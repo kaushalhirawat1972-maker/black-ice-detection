@@ -116,6 +116,16 @@ async def ingest_telemetry(packet: TelemetryPacket):
     """
     global latest_telemetry
     data_dict = packet.model_dump()
+
+    # Map fields for Next.js frontend compatibility
+    data_dict["road_status"] = packet.road_condition
+    data_dict["surface_temp"] = packet.surface_temp_c
+    data_dict["lidar_distance"] = packet.estimated_distance_m if packet.estimated_distance_m is not None else 15.0
+    data_dict["verification_status"] = packet.uncertainty_status
+    data_dict["bbox"] = packet.patch_bbox
+    if data_dict.get("ice_confidence", 0) <= 1.0:
+        data_dict["ice_confidence"] = round(data_dict["ice_confidence"] * 100, 1)
+
     latest_telemetry = data_dict
 
     # Append to rolling history

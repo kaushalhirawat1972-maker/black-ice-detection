@@ -17,8 +17,8 @@ class TelemetryPacket(BaseModel):
     
     # 5 Core System Outputs
     road_condition: str = Field(..., description="BLACK_ICE_HAZARD, WET_ROAD_NO_ICE, ROAD_CLEAR, etc.")
-    ice_confidence: float = Field(..., ge=0.0, le=1.0, description="Classification confidence (0.0 to 1.0)")
-    patch_bbox: Optional[List[int]] = Field(None, description="[x1, y1, x2, y2] bounding box coordinates")
+    ice_confidence: float = Field(..., ge=0.0, le=100.0, description="Classification confidence (0.0 to 1.0 or 0 to 100)")
+    patch_bbox: Optional[List[float]] = Field(None, description="[x, y, w, h] or [x1, y1, x2, y2] coordinates")
     estimated_distance_m: Optional[float] = Field(None, description="Associated LiDAR distance in meters")
     uncertainty_status: str = Field(default="CONFIRMED_HAZARD", description="Sensor fusion validation state")
 

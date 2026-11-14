@@ -1,7 +1,7 @@
 'use client'
 
-import { Pause, Play, Save } from 'lucide-react'
-import { useState } from 'react'
+import { Pause, Play, Save, Upload } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { Reveal } from './motion-primitives'
 import { RoadViewport } from './road-viewport'
 import { SectionHeading } from './section-heading'
@@ -9,13 +9,28 @@ import { ConfidenceGauge, DistanceTile, StatusBanner, TemperatureTile, Verificat
 import { useTelemetry } from './telemetry-provider'
 
 export function Workbench() {
-  const { live, toggleLive, saveScan, source, nextSample } = useTelemetry()
+  const { live, toggleLive, saveScan, source, nextSample, uploadCustomImage } = useTelemetry()
   const [saved, setSaved] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleSave = () => {
     saveScan()
     setSaved(true)
     setTimeout(() => setSaved(false), 1600)
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string
+        if (dataUrl) {
+          uploadCustomImage(dataUrl, file.name)
+        }
+      }
+      reader.readAsDataURL(file)
+    }
   }
 
   return (
@@ -28,6 +43,21 @@ export function Workbench() {
             description="Forward camera feed with fused HUD overlays. Switch spectrum to inspect thermal anomalies or LiDAR specular dropout."
           />
           <Reveal className="flex flex-wrap items-center gap-2" delay={0.1}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              title="Upload an arbitrary road image to evaluate"
+              className="inline-flex items-center gap-1.5 rounded-sm bg-ice px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-ice-deep"
+            >
+              <Upload className="size-4" aria-hidden />
+              Upload Image
+            </button>
             <button
               onClick={nextSample}
               title="Cycle to next test image"

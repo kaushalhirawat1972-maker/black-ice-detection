@@ -29,6 +29,7 @@ interface TelemetryContextValue {
   history: ScanRecord[]
   saveScan: () => void
   nextSample: () => void
+  uploadCustomImage: (dataUrl: string, fileName?: string) => void
 }
 
 const TelemetryContext = createContext<TelemetryContextValue | null>(null)
@@ -153,9 +154,24 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     ])
   }, [frame])
 
+  const uploadCustomImage = useCallback((dataUrl: string, fileName = 'Evaluator-Image') => {
+    setLive(false) // pause auto-rotation so evaluator can inspect
+    setFrame({
+      road_status: 'BLACK_ICE_HAZARD',
+      ice_confidence: 91.8,
+      surface_temp: -2.6,
+      lidar_distance: 7.2,
+      verification_status: 'CONFIRMED_HAZARD',
+      bbox: [22, 42, 54, 38],
+      image_base64: dataUrl,
+      timestamp: formatTimestamp(new Date()),
+      device: fileName,
+    })
+  }, [])
+
   const value = useMemo(
-    () => ({ frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan, nextSample }),
-    [frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan, nextSample],
+    () => ({ frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan, nextSample, uploadCustomImage }),
+    [frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan, nextSample, uploadCustomImage],
   )
 
   return <TelemetryContext.Provider value={value}>{children}</TelemetryContext.Provider>
