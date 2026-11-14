@@ -74,7 +74,7 @@ export function RoadViewport() {
   const meta = STATUS_META[frame.road_status]
   const tone = TONE_STYLES[meta.tone]
   const src = frame.image_base64
-    ? frame.image_base64.startsWith('data:')
+    ? (frame.image_base64.startsWith('data:') || frame.image_base64.startsWith('/') || frame.image_base64.startsWith('http'))
       ? frame.image_base64
       : `data:image/jpeg;base64,${frame.image_base64}`
     : '/images/road-feed.jpg'

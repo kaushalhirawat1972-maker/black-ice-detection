@@ -9,7 +9,7 @@ import { ConfidenceGauge, DistanceTile, StatusBanner, TemperatureTile, Verificat
 import { useTelemetry } from './telemetry-provider'
 
 export function Workbench() {
-  const { live, toggleLive, saveScan, source } = useTelemetry()
+  const { live, toggleLive, saveScan, source, nextSample } = useTelemetry()
   const [saved, setSaved] = useState(false)
 
   const handleSave = () => {
@@ -27,14 +27,21 @@ export function Workbench() {
             title="Live road viewport"
             description="Forward camera feed with fused HUD overlays. Switch spectrum to inspect thermal anomalies or LiDAR specular dropout."
           />
-          <Reveal className="flex gap-2" delay={0.1}>
+          <Reveal className="flex flex-wrap items-center gap-2" delay={0.1}>
+            <button
+              onClick={nextSample}
+              title="Cycle to next test image"
+              className="inline-flex items-center gap-1.5 rounded-sm border border-navy/20 bg-white/50 px-3.5 py-2.5 text-sm font-semibold text-navy backdrop-blur transition-all duration-200 hover:bg-white/80"
+            >
+              Next Test Image ➔
+            </button>
             <button
               onClick={toggleLive}
-              className="inline-flex items-center gap-2 rounded-sm border border-frost/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-frost backdrop-blur transition-all duration-300 hover:border-ice/50"
+              className="inline-flex items-center gap-2 rounded-sm border border-navy/20 bg-white/30 px-3.5 py-2.5 text-sm font-semibold text-navy backdrop-blur transition-all duration-200 hover:bg-white/60"
             >
               {live ? <Pause className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
-              {live ? 'Pause stream' : 'Resume stream'}
-              <span className="font-mono text-[10px] text-silver">{source === 'websocket' ? 'WS' : 'SIM'}</span>
+              {live ? 'Pause' : 'Resume'}
+              <span className="font-mono text-[10px] text-silver">{source === 'websocket' ? 'WS' : 'DEMO'}</span>
             </button>
             <button
               onClick={handleSave}

@@ -28,15 +28,15 @@ interface TelemetryContextValue {
   toggleLive: () => void
   history: ScanRecord[]
   saveScan: () => void
+  nextSample: () => void
 }
 
 const TelemetryContext = createContext<TelemetryContextValue | null>(null)
 
 const INITIAL_FRAME: TelemetryFrame = {
   ...SCENARIOS[0],
-  timestamp: '2026-10-27 21:20:05',
-  device: 'Vehicle-Pi4-Front',
-  image_base64: null,
+  timestamp: formatTimestamp(new Date()),
+  device: 'Vehicle-Edge-YOLOv8',
 }
 
 const jitter = (value: number, amount: number) => Math.round((value + (Math.random() - 0.5) * amount) * 10) / 10
@@ -44,11 +44,12 @@ const jitter = (value: number, amount: number) => Math.round((value + (Math.rand
 export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   const [frame, setFrame] = useState<TelemetryFrame>(INITIAL_FRAME)
   const [spectrumMode, setSpectrumModeState] = useState<SpectrumMode>('Visible')
-  const [connected, setConnected] = useState(!WS_URL)
+  const [connected, setConnected] = useState(false)
   const [live, setLive] = useState(true)
   const [history, setHistory] = useState<ScanRecord[]>(SAMPLE_HISTORY)
+  const [scenarioIndex, setScenarioIndex] = useState(0)
   const socketRef = useRef<WebSocket | null>(null)
-  const source: Source = WS_URL ? 'websocket' : 'simulator'
+  const source: Source = connected ? 'websocket' : 'simulator'
 
   useEffect(() => {
     if (!WS_URL || !live) return
@@ -56,21 +57,28 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     let closed = false
 
     const connect = () => {
-      const ws = new WebSocket(WS_URL)
-      socketRef.current = ws
-      ws.onopen = () => setConnected(true)
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as Partial<TelemetryFrame> & { spectrum_mode?: SpectrumMode }
-          if (data.spectrum_mode) setSpectrumModeState(data.spectrum_mode)
-          setFrame((prev) => ({ ...prev, ...data, timestamp: data.timestamp ?? formatTimestamp(new Date()) }))
-        } catch {
-          // ignore malformed frames
+      try {
+        const ws = new WebSocket(WS_URL)
+        socketRef.current = ws
+        ws.onopen = () => setConnected(true)
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data) as Partial<TelemetryFrame> & { spectrum_mode?: SpectrumMode }
+            if (data.spectrum_mode) setSpectrumModeState(data.spectrum_mode)
+            setFrame((prev) => ({ ...prev, ...data, timestamp: data.timestamp ?? formatTimestamp(new Date()) }))
+          } catch {
+            // ignore malformed frames
+          }
         }
-      }
-      ws.onclose = () => {
+        ws.onclose = () => {
+          setConnected(false)
+          if (!closed) retry = setTimeout(connect, 3000)
+        }
+        ws.onerror = () => {
+          setConnected(false)
+        }
+      } catch {
         setConnected(false)
-        if (!closed) retry = setTimeout(connect, 2500)
       }
     }
     connect()
@@ -83,25 +91,36 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     }
   }, [live])
 
+  // Simulator / Demo fallback: runs when live is on and WebSocket is not actively delivering frames
   useEffect(() => {
-    if (WS_URL || !live) return
-    let tick = 0
-    let scenario = 0
+    if (connected || !live) return
     const id = setInterval(() => {
-      tick += 1
-      if (tick % 5 === 0) scenario = (scenario + 1) % SCENARIOS.length
-      const base = SCENARIOS[scenario]
-      setFrame((prev) => ({
-        ...prev,
+      setScenarioIndex((prev) => {
+        const next = (prev + 1) % SCENARIOS.length
+        const base = SCENARIOS[next]
+        setFrame((curr) => ({
+          ...curr,
+          ...base,
+          timestamp: formatTimestamp(new Date()),
+        }))
+        return next
+      })
+    }, 3200)
+    return () => clearInterval(id)
+  }, [connected, live])
+
+  const nextSample = useCallback(() => {
+    setScenarioIndex((prev) => {
+      const next = (prev + 1) % SCENARIOS.length
+      const base = SCENARIOS[next]
+      setFrame((curr) => ({
+        ...curr,
         ...base,
-        ice_confidence: Math.max(0, Math.min(99.9, jitter(base.ice_confidence, 3))),
-        surface_temp: jitter(base.surface_temp, 0.6),
-        lidar_distance: Math.max(0.5, jitter(base.lidar_distance, 0.8)),
         timestamp: formatTimestamp(new Date()),
       }))
-    }, 1400)
-    return () => clearInterval(id)
-  }, [live])
+      return next
+    })
+  }, [])
 
   const setSpectrumMode = useCallback((mode: SpectrumMode) => {
     setSpectrumModeState(mode)
@@ -135,8 +154,8 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   }, [frame])
 
   const value = useMemo(
-    () => ({ frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan }),
-    [frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan],
+    () => ({ frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan, nextSample }),
+    [frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan, nextSample],
   )
 
   return <TelemetryContext.Provider value={value}>{children}</TelemetryContext.Provider>

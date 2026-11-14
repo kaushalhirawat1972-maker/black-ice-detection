@@ -75,8 +75,8 @@ export function SiteHeader() {
           <NavTabs layoutId="nav-active" />
         </nav>
 
-        <p className="hidden text-xs text-silver md:block">
-          {connected ? 'Receiving live data' : 'Stream paused'}
+        <p className="hidden text-xs font-medium text-navy/80 md:block">
+          {connected ? '🟢 Live Edge Stream' : '🟡 Model Sample Demonstration'}
         </p>
       </div>
 

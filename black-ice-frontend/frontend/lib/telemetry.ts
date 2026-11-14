@@ -62,30 +62,42 @@ export const TONE_STYLES: Record<Tone, { text: string; bg: string; border: strin
   safe: { text: 'text-safe', bg: 'bg-safe/10', border: 'border-safe/30', dot: 'bg-safe', hex: '#5fae8a' },
 }
 
-export const SCENARIOS: Omit<TelemetryFrame, 'timestamp' | 'device'>[] = [
+export const SCENARIOS: (Omit<TelemetryFrame, 'timestamp' | 'device'> & { image_base64?: string | null })[] = [
   {
     road_status: 'BLACK_ICE_HAZARD',
-    ice_confidence: 94.2,
-    surface_temp: -2.5,
-    lidar_distance: 11.8,
+    ice_confidence: 93.3,
+    surface_temp: -2.8,
+    lidar_distance: 6.2,
     verification_status: 'CONFIRMED_HAZARD',
-    bbox: [44, 60, 30, 20],
+    bbox: [17.9, 31.9, 82.1, 67.6],
+    image_base64: '/test_samples/ice_sample_3.jpg',
   },
   {
-    road_status: 'WET_ROAD_NO_ICE',
-    ice_confidence: 41.6,
-    surface_temp: 4.8,
-    lidar_distance: 15.3,
-    verification_status: 'WARM_SURFACE_FILTERED',
-    bbox: [40, 54, 26, 16],
+    road_status: 'BLACK_ICE_HAZARD',
+    ice_confidence: 89.2,
+    surface_temp: -1.9,
+    lidar_distance: 7.8,
+    verification_status: 'CONFIRMED_HAZARD',
+    bbox: [51.5, 59.6, 37.8, 21.1],
+    image_base64: '/test_samples/ice_sample_2.jpg',
+  },
+  {
+    road_status: 'BLACK_ICE_HAZARD',
+    ice_confidence: 84.5,
+    surface_temp: -3.4,
+    lidar_distance: 9.1,
+    verification_status: 'CONFIRMED_HAZARD',
+    bbox: [18.8, 66.3, 15.8, 12.5],
+    image_base64: '/test_samples/ice_sample_1.jpg',
   },
   {
     road_status: 'ROAD_CLEAR',
-    ice_confidence: 6.3,
-    surface_temp: 7.1,
-    lidar_distance: 28.4,
+    ice_confidence: 2.1,
+    surface_temp: 5.6,
+    lidar_distance: 35.0,
     verification_status: 'NO_DETECTION',
     bbox: null,
+    image_base64: '/test_samples/dry_sample_1.jpg',
   },
 ]
 
