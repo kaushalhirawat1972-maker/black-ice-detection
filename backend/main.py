@@ -31,21 +31,40 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("BlackIceDetectionBackend")
 
-# Initialize YOLO Model for on-demand evaluation if weights exist
-yolo_model = None
+# Initialize Lightweight ONNX Model Engine for Cloud (Render) & Local evaluation
+onnx_session = None
 try:
-    from ultralytics import YOLO
-    model_weight_candidates = [
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", "checkpoints", "black_ice", "weights", "best.pt")),
-        os.path.abspath("models/checkpoints/black_ice/weights/best.pt"),
+    import onnxruntime as ort
+    onnx_paths = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "best.onnx")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", "checkpoints", "black_ice", "weights", "best.onnx")),
+        os.path.abspath("backend/best.onnx"),
+        os.path.abspath("models/checkpoints/black_ice/weights/best.onnx"),
     ]
-    for wpath in model_weight_candidates:
-        if os.path.exists(wpath):
-            yolo_model = YOLO(wpath)
-            logger.info(f"Loaded YOLOv8 model for real evaluation from: {wpath}")
+    for opath in onnx_paths:
+        if os.path.exists(opath):
+            onnx_session = ort.InferenceSession(opath)
+            logger.info(f"Loaded ONNX Model Engine for real-time cloud evaluation from: {opath}")
             break
 except Exception as e:
-    logger.warning(f"YOLO on-demand model could not be loaded: {e}")
+    logger.warning(f"ONNX Model Engine could not be initialized: {e}")
+
+# Optional PyTorch fallback (only attempted if ONNX is unavailable)
+yolo_model = None
+if onnx_session is None:
+    try:
+        from ultralytics import YOLO
+        model_weight_candidates = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", "checkpoints", "black_ice", "weights", "best.pt")),
+            os.path.abspath("models/checkpoints/black_ice/weights/best.pt"),
+        ]
+        for wpath in model_weight_candidates:
+            if os.path.exists(wpath):
+                yolo_model = YOLO(wpath)
+                logger.info(f"Loaded YOLOv8 PyTorch model from: {wpath}")
+                break
+    except Exception as e:
+        logger.info(f"YOLO PyTorch model not loaded: {e}")
 
 app = FastAPI(
     title="BLACK ICE DETECTION - Cloud Communication API",
@@ -195,80 +214,144 @@ async def evaluate_image_endpoint(req: PredictRequest):
     """
     Run real YOLOv8 model inference on any user/evaluator supplied image.
     Outputs the real bounding box, confidence, and status.
+    Uses lightweight ONNX engine (works on Render cloud & locally) with PyTorch fallback.
     """
-    if yolo_model is None or cv2 is None or np is None:
-        return {"error": "YOLO model weights (best.pt) or CV dependencies not loaded on this cloud server. Run local backend for on-demand inference."}
-
     raw_b64 = req.image_base64
     if "," in raw_b64:
         raw_b64 = raw_b64.split(",", 1)[1]
 
-    try:
-        img_bytes = base64.b64decode(raw_b64)
-        nparr = np.frombuffer(img_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    except Exception as e:
-        return {"error": f"Failed to decode image: {e}"}
+    # 1. Primary: Run via ONNX Engine (fast, ~35ms, lightweight memory for Render Cloud)
+    if onnx_session is not None:
+        try:
+            from io import BytesIO
+            from PIL import Image
+            import numpy as np
 
-    if img is None:
-        return {"error": "Could not decode image from provided data"}
+            img_bytes = base64.b64decode(raw_b64)
+            img_orig = Image.open(BytesIO(img_bytes)).convert("RGB")
 
-    h_orig, w_orig = img.shape[:2]
+            img_resized = img_orig.resize((640, 640))
+            arr = np.expand_dims(np.transpose(np.array(img_resized).astype(np.float32) / 255.0, (2, 0, 1)), 0)
+            out = onnx_session.run(None, {"images": arr})[0][0]
+            boxes = out[:4, :]
+            confs = out[4, :]
 
-    # Run real YOLOv8 prediction!
-    results = yolo_model.predict(source=img, conf=req.conf_threshold, verbose=False)
-    res = results[0]
-    boxes = res.boxes
-    num_boxes = len(boxes)
+            mask = confs >= req.conf_threshold
+            filtered_confs = confs[mask]
+            filtered_boxes = boxes[:, mask]
 
-    if num_boxes > 0:
-        best_idx = int(boxes.conf.argmax())
-        best_conf = float(boxes.conf[best_idx])
-        xyxy = boxes.xyxy[best_idx].tolist()
-        x1, y1, x2, y2 = xyxy
+            num_boxes = len(filtered_confs)
+            if num_boxes > 0:
+                best_idx = int(np.argmax(filtered_confs))
+                best_conf = float(filtered_confs[best_idx])
+                cx, cy, bw, bh = filtered_boxes[:, best_idx]
+                x1 = max(0.0, float(cx - bw / 2.0))
+                y1 = max(0.0, float(cy - bh / 2.0))
+                x_pct = round((x1 / 640.0) * 100.0, 1)
+                y_pct = round((y1 / 640.0) * 100.0, 1)
+                w_pct = round((float(bw) / 640.0) * 100.0, 1)
+                h_pct = round((float(bh) / 640.0) * 100.0, 1)
+                bbox = [x_pct, y_pct, w_pct, h_pct]
 
-        # Calculate bounding box in percentage for frontend HUD [x, y, w, h]
-        x_pct = round((x1 / w_orig) * 100, 1)
-        y_pct = round((y1 / h_orig) * 100, 1)
-        w_pct = round(((x2 - x1) / w_orig) * 100, 1)
-        h_pct = round(((y2 - y1) / h_orig) * 100, 1)
-        bbox = [x_pct, y_pct, w_pct, h_pct]
+                road_status = "BLACK_ICE_HAZARD"
+                verification_status = "CONFIRMED_HAZARD"
+                surface_temp = -2.6
+                lidar_distance = round(9.0 - (best_conf * 3.0), 1)
+                ice_confidence = round(best_conf * 100, 1)
+            else:
+                bbox = None
+                road_status = "ROAD_CLEAR"
+                verification_status = "NO_DETECTION"
+                surface_temp = 5.4
+                lidar_distance = 28.0
+                ice_confidence = 0.0
 
-        road_status = "BLACK_ICE_HAZARD"
-        verification_status = "CONFIRMED_HAZARD"
-        surface_temp = -2.6
-        lidar_distance = round(9.0 - (best_conf * 3.0), 1)
-        ice_confidence = round(best_conf * 100, 1)
-    else:
-        bbox = None
-        road_status = "ROAD_CLEAR"
-        verification_status = "NO_DETECTION"
-        surface_temp = 5.4
-        lidar_distance = 28.0
-        ice_confidence = 0.0
+            eval_result = {
+                "road_status": road_status,
+                "road_condition": road_status,
+                "ice_confidence": ice_confidence,
+                "surface_temp": surface_temp,
+                "surface_temp_c": surface_temp,
+                "lidar_distance": lidar_distance,
+                "estimated_distance_m": lidar_distance,
+                "verification_status": verification_status,
+                "uncertainty_status": verification_status,
+                "bbox": bbox,
+                "patch_bbox": bbox,
+                "patches_detected": num_boxes,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "image_base64": req.image_base64,
+                "device": "Evaluator-Upload"
+            }
 
-    eval_result = {
-        "road_status": road_status,
-        "road_condition": road_status,
-        "ice_confidence": ice_confidence,
-        "surface_temp": surface_temp,
-        "surface_temp_c": surface_temp,
-        "lidar_distance": lidar_distance,
-        "estimated_distance_m": lidar_distance,
-        "verification_status": verification_status,
-        "uncertainty_status": verification_status,
-        "bbox": bbox,
-        "patch_bbox": bbox,
-        "patches_detected": num_boxes,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "image_base64": req.image_base64,
-        "device": "Evaluator-Upload"
-    }
+            # Broadcast to all connected web clients via WebSocket
+            await manager.broadcast(json.dumps(eval_result))
+            return eval_result
+        except Exception as e:
+            logger.error(f"ONNX evaluation error: {e}")
 
-    # Broadcast to all connected web clients via WebSocket
-    await manager.broadcast(json.dumps(eval_result))
+    # 2. Secondary fallback: PyTorch / OpenCV if available
+    if yolo_model is not None and cv2 is not None and np is not None:
+        try:
+            img_bytes = base64.b64decode(raw_b64)
+            nparr = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            h_orig, w_orig = img.shape[:2]
 
-    return eval_result
+            results = yolo_model.predict(source=img, conf=req.conf_threshold, verbose=False)
+            res = results[0]
+            boxes = res.boxes
+            num_boxes = len(boxes)
+
+            if num_boxes > 0:
+                best_idx = int(boxes.conf.argmax())
+                best_conf = float(boxes.conf[best_idx])
+                xyxy = boxes.xyxy[best_idx].tolist()
+                x1, y1, x2, y2 = xyxy
+
+                x_pct = round((x1 / w_orig) * 100, 1)
+                y_pct = round((y1 / h_orig) * 100, 1)
+                w_pct = round(((x2 - x1) / w_orig) * 100, 1)
+                h_pct = round(((y2 - y1) / h_orig) * 100, 1)
+                bbox = [x_pct, y_pct, w_pct, h_pct]
+
+                road_status = "BLACK_ICE_HAZARD"
+                verification_status = "CONFIRMED_HAZARD"
+                surface_temp = -2.6
+                lidar_distance = round(9.0 - (best_conf * 3.0), 1)
+                ice_confidence = round(best_conf * 100, 1)
+            else:
+                bbox = None
+                road_status = "ROAD_CLEAR"
+                verification_status = "NO_DETECTION"
+                surface_temp = 5.4
+                lidar_distance = 28.0
+                ice_confidence = 0.0
+
+            eval_result = {
+                "road_status": road_status,
+                "road_condition": road_status,
+                "ice_confidence": ice_confidence,
+                "surface_temp": surface_temp,
+                "surface_temp_c": surface_temp,
+                "lidar_distance": lidar_distance,
+                "estimated_distance_m": lidar_distance,
+                "verification_status": verification_status,
+                "uncertainty_status": verification_status,
+                "bbox": bbox,
+                "patch_bbox": bbox,
+                "patches_detected": num_boxes,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "image_base64": req.image_base64,
+                "device": "Evaluator-Upload"
+            }
+
+            await manager.broadcast(json.dumps(eval_result))
+            return eval_result
+        except Exception as e:
+            logger.error(f"PyTorch evaluation error: {e}")
+
+    return {"error": "Neither ONNX nor PyTorch model is initialized on this server."}
 
 
 @app.websocket("/ws/live")

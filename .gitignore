@@ -51,6 +51,7 @@ models/exported/
 *.pt
 *.pth
 *.onnx
+!backend/best.onnx
 *.engine
 *.weights
 runs/

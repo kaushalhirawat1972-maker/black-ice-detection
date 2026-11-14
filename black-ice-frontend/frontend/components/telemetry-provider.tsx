@@ -174,18 +174,25 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       timestamp: formatTimestamp(new Date()),
     }))
 
-    // Candidate API URLs: local backend first, then cloud backend
-    const apiEndpoints = [
-      'http://localhost:8000/api/predict',
-      'https://black-ice-detection-w33c.onrender.com/api/predict',
-    ]
+    // Candidate API URLs: order based on protocol to prevent mixed content blocking on HTTPS
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
+    const apiEndpoints = isHttps
+      ? [
+          'https://black-ice-detection-w33c.onrender.com/api/predict',
+          'http://localhost:8000/api/predict',
+        ]
+      : [
+          'http://localhost:8000/api/predict',
+          'https://black-ice-detection-w33c.onrender.com/api/predict',
+        ]
 
     let evaluated = false
+    let failureDetail: string | null = null
 
     for (const url of apiEndpoints) {
       try {
         const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 8000)
+        const timeout = setTimeout(() => controller.abort(), 12000)
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -211,16 +218,29 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
             }))
             evaluated = true
             break
+          } else {
+            failureDetail = data.error
           }
+        } else {
+          failureDetail = `Backend HTTP status ${res.status}`
         }
-      } catch {
-        // Try next endpoint
+      } catch (err: any) {
+        // Continue to fallback
+        if (err?.name === 'AbortError') {
+          failureDetail = 'Request timed out (Render free tier may take ~30s to wake up)'
+        }
       }
     }
 
     setEvaluating(false)
     if (!evaluated) {
-      setEvalError("Model backend offline. Run 'python run_backend.py' in your terminal to evaluate custom images live.")
+      if (failureDetail) {
+        setEvalError(`Model service error: ${failureDetail}`)
+      } else if (isHttps) {
+        setEvalError("Cloud backend is waking up or offline. If newly deployed, Render takes ~35s to boot. You can also run locally on http://localhost:3000.")
+      } else {
+        setEvalError("Model backend offline. Run 'python run_backend.py' in your terminal to evaluate custom images live.")
+      }
     }
   }, [])
 
