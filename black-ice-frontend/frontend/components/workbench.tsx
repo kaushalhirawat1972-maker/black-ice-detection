@@ -2,6 +2,7 @@
 
 import { Pause, Play, Save, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
 import { Reveal } from './motion-primitives'
 import { RoadViewport } from './road-viewport'
 import { SectionHeading } from './section-heading'
@@ -9,7 +10,7 @@ import { ConfidenceGauge, DistanceTile, StatusBanner, TemperatureTile, Verificat
 import { useTelemetry } from './telemetry-provider'
 
 export function Workbench() {
-  const { live, toggleLive, saveScan, source, nextSample, uploadCustomImage } = useTelemetry()
+  const { live, toggleLive, saveScan, source, nextSample, uploadCustomImage, connected } = useTelemetry()
   const [saved, setSaved] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -43,6 +44,17 @@ export function Workbench() {
             description="Forward camera feed with fused HUD overlays. Switch spectrum to inspect thermal anomalies or LiDAR specular dropout."
           />
           <Reveal className="flex flex-wrap items-center gap-2" delay={0.1}>
+            <div className="flex items-center gap-2 rounded-sm border border-navy/15 bg-white/60 px-3 py-2 font-mono text-xs backdrop-blur">
+              <span
+                className={cn(
+                  'size-2 rounded-full',
+                  !live ? 'bg-amber-500' : connected ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500 animate-pulse'
+                )}
+              />
+              <span className="font-semibold text-navy">
+                {!live ? 'PAUSED' : connected ? 'MODEL ACTIVE' : 'DEMO MODE'}
+              </span>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
