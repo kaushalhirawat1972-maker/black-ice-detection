@@ -1,8 +1,7 @@
 'use client'
 
-import { Pause, Play, Save, Upload } from 'lucide-react'
+import { Loader2, Pause, Play, Save, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
 import { Reveal } from './motion-primitives'
 import { RoadViewport } from './road-viewport'
 import { SectionHeading } from './section-heading'
@@ -10,7 +9,7 @@ import { ConfidenceGauge, DistanceTile, StatusBanner, TemperatureTile, Verificat
 import { useTelemetry } from './telemetry-provider'
 
 export function Workbench() {
-  const { live, toggleLive, saveScan, source, nextSample, uploadCustomImage, connected } = useTelemetry()
+  const { live, toggleLive, saveScan, source, nextSample, uploadCustomImage, evaluating, evalError } = useTelemetry()
   const [saved, setSaved] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -32,6 +31,8 @@ export function Workbench() {
       }
       reader.readAsDataURL(file)
     }
+    // reset input so same file can be re-selected if desired
+    e.target.value = ''
   }
 
   return (
@@ -53,11 +54,12 @@ export function Workbench() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
+              disabled={evaluating}
               title="Upload an arbitrary road image to evaluate"
-              className="inline-flex items-center gap-1.5 rounded-sm border border-navy/20 bg-white/50 px-3.5 py-2.5 text-sm font-semibold text-navy backdrop-blur transition-all duration-200 hover:bg-white/80"
+              className="inline-flex items-center gap-1.5 rounded-sm border border-navy/20 bg-white/50 px-3.5 py-2.5 text-sm font-semibold text-navy backdrop-blur transition-all duration-200 hover:bg-white/80 disabled:opacity-60"
             >
-              <Upload className="size-4" aria-hidden />
-              Upload Image
+              {evaluating ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" aria-hidden />}
+              {evaluating ? 'Running YOLOv8...' : 'Upload Image'}
             </button>
             <button
               onClick={nextSample}
@@ -83,6 +85,13 @@ export function Workbench() {
             </button>
           </Reveal>
         </div>
+
+        {evalError && (
+          <div className="mt-4 flex items-center justify-between rounded-sm border border-amber-500/30 bg-amber-50/90 p-3 text-xs font-medium text-amber-900 shadow-sm backdrop-blur">
+            <span>{evalError}</span>
+            <span className="font-mono text-[10px] text-amber-700">Port 8000</span>
+          </div>
+        )}
 
         <div className="mt-10 grid gap-5 lg:grid-cols-12">
           <Reveal className="lg:col-span-8">

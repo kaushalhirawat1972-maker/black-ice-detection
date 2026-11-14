@@ -29,7 +29,9 @@ interface TelemetryContextValue {
   history: ScanRecord[]
   saveScan: () => void
   nextSample: () => void
-  uploadCustomImage: (dataUrl: string, fileName?: string) => void
+  uploadCustomImage: (dataUrl: string, fileName?: string) => Promise<void>
+  evaluating: boolean
+  evalError: string | null
 }
 
 const TelemetryContext = createContext<TelemetryContextValue | null>(null)
@@ -49,6 +51,8 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   const [live, setLive] = useState(true)
   const [history, setHistory] = useState<ScanRecord[]>(SAMPLE_HISTORY)
   const [scenarioIndex, setScenarioIndex] = useState(0)
+  const [evaluating, setEvaluating] = useState(false)
+  const [evalError, setEvalError] = useState<string | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const source: Source = connected ? 'websocket' : 'simulator'
 
@@ -154,24 +158,103 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     ])
   }, [frame])
 
-  const uploadCustomImage = useCallback((dataUrl: string, fileName = 'Evaluator-Image') => {
-    setLive(false) // pause auto-rotation so evaluator can inspect
-    setFrame({
-      road_status: 'BLACK_ICE_HAZARD',
-      ice_confidence: 91.8,
-      surface_temp: -2.6,
-      lidar_distance: 7.2,
-      verification_status: 'CONFIRMED_HAZARD',
-      bbox: [22, 42, 54, 38],
+  const uploadCustomImage = useCallback(async (dataUrl: string, fileName = 'Evaluator-Image') => {
+    setLive(false) // pause auto-rotation
+    setEvaluating(true)
+    setEvalError(null)
+
+    // Set preview image with scanning state (confidence 0 until model returns)
+    setFrame((prev) => ({
+      ...prev,
       image_base64: dataUrl,
+      road_status: 'WET_ROAD_NO_ICE',
+      ice_confidence: 0,
+      bbox: null,
+      device: `Evaluating: ${fileName}`,
       timestamp: formatTimestamp(new Date()),
-      device: fileName,
-    })
+    }))
+
+    // Candidate API URLs: local backend first, then cloud backend
+    const apiEndpoints = [
+      'http://localhost:8000/api/predict',
+      'https://black-ice-detection-w33c.onrender.com/api/predict',
+    ]
+
+    let evaluated = false
+
+    for (const url of apiEndpoints) {
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 8000)
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: dataUrl, conf_threshold: 0.25 }),
+          signal: controller.signal,
+        })
+        clearTimeout(timeout)
+
+        if (res.ok) {
+          const data = await res.json()
+          if (!data.error) {
+            setFrame((prev) => ({
+              ...prev,
+              road_status: data.road_status,
+              ice_confidence: data.ice_confidence,
+              surface_temp: data.surface_temp,
+              lidar_distance: data.lidar_distance,
+              verification_status: data.verification_status,
+              bbox: data.bbox,
+              image_base64: dataUrl,
+              device: fileName,
+              timestamp: data.timestamp || formatTimestamp(new Date()),
+            }))
+            evaluated = true
+            break
+          }
+        }
+      } catch {
+        // Try next endpoint
+      }
+    }
+
+    setEvaluating(false)
+    if (!evaluated) {
+      setEvalError("Model backend offline. Run 'python run_backend.py' in your terminal to evaluate custom images live.")
+    }
   }, [])
 
   const value = useMemo(
-    () => ({ frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan, nextSample, uploadCustomImage }),
-    [frame, spectrumMode, setSpectrumMode, connected, source, live, toggleLive, history, saveScan, nextSample, uploadCustomImage],
+    () => ({
+      frame,
+      spectrumMode,
+      setSpectrumMode,
+      connected,
+      source,
+      live,
+      toggleLive,
+      history,
+      saveScan,
+      nextSample,
+      uploadCustomImage,
+      evaluating,
+      evalError,
+    }),
+    [
+      frame,
+      spectrumMode,
+      setSpectrumMode,
+      connected,
+      source,
+      live,
+      toggleLive,
+      history,
+      saveScan,
+      nextSample,
+      uploadCustomImage,
+      evaluating,
+      evalError,
+    ],
   )
 
   return <TelemetryContext.Provider value={value}>{children}</TelemetryContext.Provider>
