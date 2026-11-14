@@ -80,8 +80,8 @@ export function RoadViewport() {
     : '/images/road-feed.jpg'
 
   return (
-    <div className="glass-dark rounded-3xl p-3 sm:p-4" data-spot={meta.tone === 'safe' ? 'ice' : meta.tone}>
-      <div className="relative aspect-video overflow-hidden rounded-2xl bg-navy">
+    <div className="glass-dark rounded-sm p-3 sm:p-4" data-spot={meta.tone === 'safe' ? 'ice' : meta.tone}>
+      <div className="relative aspect-video overflow-hidden rounded-sm bg-slate-900">
         <AnimatePresence mode="sync">
           <motion.div
             key={spectrumMode}
@@ -105,7 +105,7 @@ export function RoadViewport() {
               <>
                 <div
                   className="absolute inset-0 mix-blend-color"
-                  style={{ background: 'linear-gradient(to top, #fff3c4 0%, #ffd166 22%, #a7f3d0 45%, #38bdf8 70%, #07172c 100%)' }}
+                  style={{ background: 'linear-gradient(to top, #fff3c4 0%, #ffd166 22%, #a7f3d0 45%, #38bdf8 70%, #0f172a 100%)' }}
                 />
                 {frame.bbox && (
                   <div
@@ -124,15 +124,15 @@ export function RoadViewport() {
             {spectrumMode === 'Edge' && (
               <>
                 <div className="absolute inset-0 bg-ice/40 mix-blend-screen" />
-                <div className="absolute inset-0 bg-navy/30" />
+                <div className="absolute inset-0 bg-slate-900/30" />
                 <LidarFan />
               </>
             )}
           </motion.div>
         </AnimatePresence>
 
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[10%] animate-scan bg-gradient-to-b from-transparent via-ice/25 to-transparent" />
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-t from-navy/70 via-transparent to-navy/30" />
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[10%] animate-scan bg-gradient-to-b from-transparent via-ice/10 to-transparent" />
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-slate-950/20" />
         <Reticles />
 
         <AnimatePresence>
@@ -150,7 +150,7 @@ export function RoadViewport() {
               }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute rounded-md border-2"
+              className="absolute rounded-sm border-2"
               style={{
                 borderColor: tone.hex,
                 boxShadow: `0 0 20px ${tone.hex}66, inset 0 0 16px ${tone.hex}33`,
@@ -158,7 +158,7 @@ export function RoadViewport() {
               }}
             >
               <span
-                className="absolute -top-7 left-0 whitespace-nowrap rounded-md px-2 py-1 font-mono text-[10px] font-bold tracking-wide text-navy sm:text-[11px]"
+                className="absolute -top-7 left-0 whitespace-nowrap rounded-sm px-2 py-1 font-mono text-[10px] font-bold tracking-wide text-navy sm:text-[11px]"
                 style={{ background: tone.hex }}
               >
                 {meta.tone === 'hazard' ? 'BLACK ICE HAZARD' : 'WET SURFACE'} {frame.ice_confidence.toFixed(1)}% ·{' '}
@@ -169,27 +169,27 @@ export function RoadViewport() {
         </AnimatePresence>
 
         <div className="absolute left-5 top-5 flex items-center gap-2 sm:left-7 sm:top-7">
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-warn/90 px-2 py-1 font-mono text-[10px] font-bold tracking-wider text-navy">
-            <span className="size-1.5 animate-pulse rounded-full bg-navy" />
+          <span className="inline-flex items-center gap-1.5 rounded-sm bg-warn/90 px-2 py-1 font-mono text-[10px] font-bold tracking-wider text-navy">
+            <span className="size-1.5 animate-pulse rounded-full bg-snow" />
             REC
           </span>
-          <span className="rounded-md border border-ice/30 bg-navy/70 px-2 py-1 font-mono text-[10px] font-semibold tracking-wider text-ice backdrop-blur">
+          <span className="rounded-sm border border-ice/30 bg-slate-900/70 px-2 py-1 font-mono text-[10px] font-semibold tracking-wider text-ice backdrop-blur">
             {spectrumMode.toUpperCase()} · 30 FPS
           </span>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-between gap-2 px-5 pb-4 font-mono text-[10px] tracking-wide text-silver sm:px-7 sm:pb-5 sm:text-[11px]">
+        <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-between gap-2 px-5 pb-4 font-mono text-[10px] tracking-wide text-snow/75 sm:px-7 sm:pb-5 sm:text-[11px]">
           <span>
-            Timestamp: <span className="text-frost">{frame.timestamp}</span>
+            Timestamp: <span className="text-snow">{frame.timestamp}</span>
           </span>
           <span>
-            Device: <span className="text-frost">{frame.device}</span>
+            Device: <span className="text-snow">{frame.device}</span>
           </span>
         </div>
       </div>
 
       <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div role="tablist" aria-label="Spectrum mode" className="relative flex rounded-xl border border-frost/10 bg-navy/50 p-1">
+        <div role="tablist" aria-label="Spectrum mode" className="relative flex rounded-sm border border-white/10 bg-white/5 p-1">
           {MODES.map((m) => {
             const selected = spectrumMode === m.id
             return (
@@ -199,14 +199,14 @@ export function RoadViewport() {
                 aria-selected={selected}
                 onClick={() => setSpectrumMode(m.id)}
                 className={cn(
-                  'relative flex-1 rounded-lg px-4 py-2 text-left transition-colors duration-300 sm:flex-none',
+                  'relative flex-1 rounded-sm px-4 py-2 text-left transition-colors duration-300 sm:flex-none',
                   selected ? 'text-snow' : 'text-silver hover:text-frost',
                 )}
               >
                 {selected && (
                   <motion.span
                     layoutId="spectrum-pill"
-                    className="absolute inset-0 rounded-lg border border-ice/30 bg-ice/15"
+                    className="absolute inset-0 rounded-sm border border-ice/30 bg-ice/15"
                     transition={{ type: 'spring', stiffness: 400, damping: 34 }}
                   />
                 )}

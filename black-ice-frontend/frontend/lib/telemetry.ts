@@ -31,19 +31,19 @@ export interface ScanRecord {
 
 export const STATUS_META: Record<RoadStatus, { label: string; short: string; tone: Tone; description: string }> = {
   BLACK_ICE_HAZARD: {
-    label: 'BLACK_ICE_HAZARD',
+    label: 'Black ice hazard',
     short: 'Black Ice',
     tone: 'hazard',
     description: 'Invisible ice glaze confirmed by thermal, vision and LiDAR fusion. De-icing actuation armed.',
   },
   WET_ROAD_NO_ICE: {
-    label: 'WET_ROAD_NO_ICE',
+    label: 'Wet road, no ice',
     short: 'Wet Road',
     tone: 'warn',
     description: 'Reflective wet surface detected, but surface temperature is outside the freezing envelope.',
   },
   ROAD_CLEAR: {
-    label: 'ROAD_CLEAR',
+    label: 'Road clear',
     short: 'Clear',
     tone: 'safe',
     description: 'Dry asphalt. No ice signatures across any sensor channel.',
@@ -57,9 +57,9 @@ export const VERIFICATION_TONE: Record<VerificationStatus, Tone> = {
 }
 
 export const TONE_STYLES: Record<Tone, { text: string; bg: string; border: string; dot: string; hex: string }> = {
-  hazard: { text: 'text-amber-300', bg: 'bg-amber-400/10', border: 'border-amber-300/30', dot: 'bg-hazard', hex: '#f59e0b' },
-  warn: { text: 'text-warn', bg: 'bg-warn/10', border: 'border-warn/30', dot: 'bg-warn', hex: '#ffd166' },
-  safe: { text: 'text-emerald-300', bg: 'bg-emerald-400/10', border: 'border-emerald-400/30', dot: 'bg-safe', hex: '#10b981' },
+  hazard: { text: 'text-hazard', bg: 'bg-hazard/10', border: 'border-hazard/30', dot: 'bg-hazard', hex: '#d98a3d' },
+  warn: { text: 'text-warn', bg: 'bg-warn/10', border: 'border-warn/30', dot: 'bg-warn', hex: '#d9a441' },
+  safe: { text: 'text-safe', bg: 'bg-safe/10', border: 'border-safe/30', dot: 'bg-safe', hex: '#5fae8a' },
 }
 
 export const SCENARIOS: Omit<TelemetryFrame, 'timestamp' | 'device'>[] = [
@@ -101,4 +101,10 @@ export const SAMPLE_HISTORY: ScanRecord[] = [
 export function formatTimestamp(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+/** Turns machine codes like CONFIRMED_HAZARD into "Confirmed hazard" for display. */
+export function readable(code: string): string {
+  const s = code.toLowerCase().replace(/_/g, ' ')
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }

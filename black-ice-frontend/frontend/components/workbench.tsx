@@ -23,14 +23,14 @@ export function Workbench() {
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <SectionHeading
-            eyebrow="01 · LIVE WORKBENCH"
+            eyebrow="Live workbench"
             title="Live road viewport"
             description="Forward camera feed with fused HUD overlays. Switch spectrum to inspect thermal anomalies or LiDAR specular dropout."
           />
           <Reveal className="flex gap-2" delay={0.1}>
             <button
               onClick={toggleLive}
-              className="inline-flex items-center gap-2 rounded-full border border-frost/15 bg-navy/50 px-4 py-2.5 text-sm font-semibold text-frost backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:border-ice/50"
+              className="inline-flex items-center gap-2 rounded-sm border border-frost/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-frost backdrop-blur transition-all duration-300 hover:border-ice/50"
             >
               {live ? <Pause className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
               {live ? 'Pause stream' : 'Resume stream'}
@@ -38,7 +38,7 @@ export function Workbench() {
             </button>
             <button
               onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-full bg-frost px-4 py-2.5 text-sm font-semibold text-navy-2 shadow-[0_10px_30px_-10px_rgba(56,189,248,0.5)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-snow"
+              className="inline-flex items-center gap-2 rounded-sm bg-ice px-4 py-2.5 text-sm font-semibold text-navy transition-colors duration-200 hover:bg-ice-deep"
             >
               <Save className="size-4" aria-hidden />
               {saved ? 'Saved to history' : 'Save scan'}

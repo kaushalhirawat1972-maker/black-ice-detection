@@ -1,7 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { STATUS_META, TONE_STYLES, VERIFICATION_TONE } from '@/lib/telemetry'
+import { STATUS_META, TONE_STYLES, VERIFICATION_TONE, readable } from '@/lib/telemetry'
 import { cn } from '@/lib/utils'
 import { Reveal } from './motion-primitives'
 import { SectionHeading } from './section-heading'
@@ -14,19 +14,19 @@ export function ScanHistory() {
     <section className="relative min-h-svh px-5 pb-28 pt-40 sm:px-8 lg:pt-36">
       <div className="mx-auto max-w-7xl">
         <SectionHeading
-          eyebrow="04 · SCAN HISTORY"
+          eyebrow="Scan history"
           title="Saved session scans"
           description="Every snapshot captured from the workbench, with the fused decision and raw sensor readings that produced it."
         />
 
         <Reveal delay={0.1} className="mt-10">
-          <div className="glass-dark overflow-hidden rounded-3xl">
+          <div className="glass-dark overflow-hidden rounded-sm">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-frost/10 bg-frost/5 font-mono text-[10px] tracking-[0.14em] text-silver">
-                    {['TIMESTAMP', 'ROAD CONDITION', 'CONFIDENCE', 'SURFACE TEMP', 'DISTANCE', 'STATUS'].map((h) => (
-                      <th key={h} scope="col" className="px-6 py-4 font-bold">
+                  <tr className="border-b border-white/10 bg-frost/5 text-xs text-silver">
+                    {['Time', 'Road condition', 'Confidence', 'Surface temp', 'Distance', 'Status'].map((h) => (
+                      <th key={h} scope="col" className="px-6 py-3 font-medium">
                         {h}
                       </th>
                     ))}
@@ -42,15 +42,15 @@ export function ScanHistory() {
                         <motion.tr
                           key={row.id}
                           layout
-                          initial={{ opacity: 0, backgroundColor: 'rgba(56,189,248,0.16)' }}
-                          animate={{ opacity: 1, backgroundColor: 'rgba(56,189,248,0)' }}
+                          initial={{ opacity: 0, backgroundColor: 'rgba(143,180,216,0.12)' }}
+                          animate={{ opacity: 1, backgroundColor: 'rgba(143,180,216,0)' }}
                           transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
                           data-spot={meta.tone === 'safe' ? 'ice' : meta.tone}
                           className="border-b border-frost/5 transition-colors duration-300 last:border-0 hover:!bg-ice/5"
                         >
                           <td className="px-6 py-4 font-mono text-xs text-frost">{row.timestamp}</td>
                           <td className="px-6 py-4">
-                            <span className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold', tone.bg, tone.border, tone.text)}>
+                            <span className={cn('inline-flex items-center gap-2 text-sm', tone.text)}>
                               <span className={cn('size-1.5 rounded-full', tone.dot)} />
                               {meta.short}
                             </span>
@@ -66,7 +66,7 @@ export function ScanHistory() {
                           <td className="px-6 py-4 font-mono text-xs text-frost">{row.surface_temp.toFixed(1)} °C</td>
                           <td className="px-6 py-4 font-mono text-xs text-frost">{row.lidar_distance.toFixed(1)} m</td>
                           <td className="px-6 py-4">
-                            <span className={cn('font-mono text-[11px] font-bold', vTone.text)}>{row.verification_status}</span>
+                            <span className={cn('text-sm', vTone.text)}>{readable(row.verification_status)}</span>
                           </td>
                         </motion.tr>
                       )
