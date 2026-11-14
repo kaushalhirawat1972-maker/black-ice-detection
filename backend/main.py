@@ -135,6 +135,12 @@ def root():
     }
 
 
+@app.get("/health")
+def health():
+    """Lightweight keep-alive endpoint. Frontend pings this on page load to wake the Render container."""
+    return {"status": "ok", "model_loaded": onnx_session is not None or yolo_model is not None}
+
+
 @app.get("/api/health", response_model=SystemHealth)
 def get_health():
     """Healthcheck endpoint for system status pills."""
