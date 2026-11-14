@@ -6,3 +6,4 @@ ultralytics>=8.0.0
 pyyaml>=6.0
 adafruit-circuitpython-mlx90640>=1.2.0
 rplidar-roboticia>=0.9.5
+pyserial>=3.5

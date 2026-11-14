@@ -33,14 +33,21 @@ CAMERA_FOV_H_DEG = 66.0         # Pi Camera Module 3 Horizontal FOV
 IMG_WIDTH = 640
 IMG_HEIGHT = 480
 
-# Wheel & Odometry defaults (update when you measure motor wheels)
-WHEEL_RADIUS_M = 0.035          # 3.5 cm radius (7 cm diameter wheel)
-TICKS_PER_REV = 360             # Standard encoder ticks per wheel revolution
+# Wheel & Odometry parameters for RMCS-3070 Johnson Quad Encoder Motor (100 RPM, 12V)
+WHEEL_DIAMETER_M = 0.105        # 10.5 cm outer wheel diameter
+WHEEL_RADIUS_M = WHEEL_DIAMETER_M / 2.0  # 0.0525 m (5.25 cm radius)
+WHEEL_CIRCUMFERENCE_M = math.pi * WHEEL_DIAMETER_M  # ~0.3299 m per full rotation
+
+# Encoder specs: 13 PPR base motor * 4x quadrature * 180:1 gear ratio = 9,360 ticks/wheel rev
+# (If reading single-channel rising edges only, change to 2340)
+TICKS_PER_REV = int(os.environ.get("ENCODER_CPR", "9360"))
+METERS_PER_TICK = WHEEL_CIRCUMFERENCE_M / float(TICKS_PER_REV)
 
 # Cloud API Endpoint (Render backend URL)
 CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "http://localhost:8000/api/telemetry")
 MODEL_PATH = os.environ.get("MODEL_PATH", "models/checkpoints/black_ice/weights/best.pt")
 LIDAR_PORT = os.environ.get("LIDAR_PORT", "/dev/ttyUSB0")
+SERIAL_ODOM_PORT = os.environ.get("SERIAL_ODOM_PORT", "/dev/ttyACM0")  # Arduino/motor controller port
 OBSTACLE_STOP_DIST_M = 0.40     # Stop if obstacle within 40 cm in front
 
 # ======================== 1. CAMERA DISTANCE ESTIMATION (IPM) ========================
@@ -132,14 +139,49 @@ class ThermalReader:
 
 # ======================== 4. WHEEL ODOMETRY TRACKER ========================
 class OdometryTracker:
-    """Calculates displacement from motor encoders to track target interception."""
-    def __init__(self):
+    """
+    Calculates linear displacement from RMCS-3070 Johnson Quad Encoders.
+    Wheel Diameter: 10.5 cm -> Circumference: 32.99 cm
+    Ticks/rev: 9,360 (4x) or 2,340 (1x)
+    """
+    def __init__(self, serial_port: str = SERIAL_ODOM_PORT):
         self.total_distance_traveled_m = 0.0
         self.target_remaining_m = None
+        self.serial_port = serial_port
+        self.is_connected = False
+        self._start_serial_listener()
+
+    def _start_serial_listener(self):
+        """Optional background listener if motor controller/Arduino is connected via USB Serial."""
+        def listener():
+            try:
+                import serial
+                ser = serial.Serial(self.serial_port, 115200, timeout=1.0)
+                self.is_connected = True
+                logger.info(f"✓ Wheel Encoder Serial connected on {self.serial_port}")
+                last_l = 0
+                last_r = 0
+                while True:
+                    line = ser.readline().decode('utf-8', errors='ignore').strip()
+                    if line.startswith("ENC"):
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            cur_l = int(parts[1])
+                            cur_r = int(parts[2])
+                            delta_l = cur_l - last_l
+                            delta_r = cur_r - last_r
+                            last_l, last_r = cur_l, cur_r
+                            self.update_encoder_ticks(delta_l, delta_r)
+            except Exception:
+                # Normal when testing without Arduino serial connection
+                pass
+
+        thread = threading.Thread(target=listener, daemon=True)
+        thread.start()
 
     def update_encoder_ticks(self, left_ticks_delta: int, right_ticks_delta: int):
         avg_ticks = (left_ticks_delta + right_ticks_delta) / 2.0
-        displacement = (avg_ticks / TICKS_PER_REV) * (2 * math.pi * WHEEL_RADIUS_M)
+        displacement = avg_ticks * METERS_PER_TICK
         self.total_distance_traveled_m += displacement
         if self.target_remaining_m is not None:
             self.target_remaining_m = max(0.0, self.target_remaining_m - displacement)
