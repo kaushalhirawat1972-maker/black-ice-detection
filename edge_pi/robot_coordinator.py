@@ -190,7 +190,64 @@ class OdometryTracker:
         self.target_remaining_m = initial_dist_m
 
 
-# ======================== 5. MAIN INTEGRATED EDGE RUNNER ========================
+# ======================== 5. PI CAMERA 3 & OPENCV WRAPPER ========================
+class CameraStream:
+    """Supports both Pi Camera Module 3 (via picamera2) and generic OpenCV V4L2 webcams."""
+    def __init__(self, width: int = IMG_WIDTH, height: int = IMG_HEIGHT):
+        self.width = width
+        self.height = height
+        self.picam2 = None
+        self.cap = None
+        self._init_camera()
+
+    def _init_camera(self):
+        # 1. Try native Picamera2 (recommended for RPi Camera Module 3 on Raspberry Pi OS)
+        try:
+            from picamera2 import Picamera2
+            self.picam2 = Picamera2()
+            config = self.picam2.create_video_configuration(main={"size": (self.width, self.height), "format": "RGB888"})
+            self.picam2.configure(config)
+            self.picam2.start()
+            logger.info("✓ Pi Camera Module 3 initialized via Picamera2")
+            return
+        except Exception:
+            pass
+
+        # 2. Fallback to standard OpenCV VideoCapture (USB / V4L2)
+        try:
+            self.cap = cv2.VideoCapture(0)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            if self.cap.isOpened():
+                logger.info("✓ Camera initialized via OpenCV VideoCapture(0)")
+            else:
+                logger.error("Camera not accessible via Picamera2 or OpenCV!")
+        except Exception as e:
+            logger.error(f"Camera initialization failed: {e}")
+
+    def read_frame(self):
+        if self.picam2 is not None:
+            try:
+                frame_rgb = self.picam2.capture_array()
+                # Convert RGB to BGR for OpenCV / YOLO processing
+                return True, cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+            except Exception:
+                return False, None
+        elif self.cap is not None and self.cap.isOpened():
+            return self.cap.read()
+        return False, None
+
+    def release(self):
+        if self.picam2 is not None:
+            try:
+                self.picam2.stop()
+            except Exception:
+                pass
+        if self.cap is not None:
+            self.cap.release()
+
+
+# ======================== 6. MAIN INTEGRATED EDGE RUNNER ========================
 def encode_frame_to_base64(frame_bgr, quality=65) -> str:
     _, buf = cv2.imencode('.jpg', frame_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
     return f"data:image/jpeg;base64,{base64.b64encode(buf).decode('utf-8')}"
@@ -202,6 +259,7 @@ def main():
     logger.info(f"Target Cloud API : {CLOUD_API_URL}")
     logger.info(f"YOLO Model Path  : {MODEL_PATH}")
     logger.info(f"Camera Specs     : Height={CAMERA_HEIGHT_M}m, Pitch={CAMERA_PITCH_DEG} deg")
+    logger.info(f"Motor / Wheel    : RMCS-3070 (100RPM), Dia={WHEEL_DIAMETER_M}m, CPR={TICKS_PER_REV}")
     logger.info("=" * 65)
 
     # 1. Load YOLOv8
@@ -216,21 +274,13 @@ def main():
     thermal = ThermalReader()
     lidar = LidarObstacleDetector()
     odometry = OdometryTracker()
-
-    # 3. Open Pi Camera (V4L2 on index 0)
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, IMG_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT)
-
-    if not cap.isOpened():
-        logger.error("Cannot open Pi Camera on index 0!")
-        return
+    cam = CameraStream(IMG_WIDTH, IMG_HEIGHT)
 
     logger.info("✓ Camera streaming active. Running edge loop...")
 
     try:
         while True:
-            ret, frame = cap.read()
+            ret, frame = cam.read_frame()
             if not ret or frame is None:
                 time.sleep(0.05)
                 continue
@@ -274,16 +324,21 @@ def main():
             collision_warning = front_obstacle_m < OBSTACLE_STOP_DIST_M
 
             # --- STEP E: HUD DRAWING ON CAMERA FRAME ---
+            current_dist_m = odometry.target_remaining_m if odometry.target_remaining_m is not None else patch_distance_m
             status_color = (0, 0, 255) if detected_hazard else (0, 255, 0)
             cv2.putText(
                 annotated_frame,
                 f"Status: {road_condition} | Temp: {surface_temp:.1f}C",
                 (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.65, status_color, 2
             )
-            if patch_distance_m is not None:
+            if current_dist_m is not None:
+                dist_label = f"Ice Patch Dist: {current_dist_m:.2f} m"
+                if odometry.is_connected:
+                    dist_label += " [ODOM TRACKING]"
+                else:
+                    dist_label += " [CAMERA IPM]"
                 cv2.putText(
-                    annotated_frame,
-                    f"Ice Patch Dist (Camera IPM): {patch_distance_m:.2f} m",
+                    annotated_frame, dist_label,
                     (15, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2
                 )
             if collision_warning:
@@ -301,14 +356,14 @@ def main():
                 "road_condition": road_condition,
                 "ice_confidence": round(ice_conf, 3),
                 "patch_bbox": patch_bbox,
-                "estimated_distance_m": patch_distance_m,
+                "estimated_distance_m": round(float(current_dist_m), 2) if current_dist_m is not None else None,
                 "uncertainty_status": "CONFIRMED_HAZARD" if detected_hazard else "NO_HAZARD",
                 "surface_temp_c": surface_temp,
                 "ambient_temp_c": round(surface_temp + 2.0, 1),
                 "lidar_specular_dropout": detected_hazard,
                 "deicing_active": detected_hazard,
                 "spray_lane": "CENTER AUGER",
-                "time_to_impact_sec": round(patch_distance_m / 1.0, 2) if patch_distance_m else None,
+                "time_to_impact_sec": round(current_dist_m / 1.0, 2) if current_dist_m else None,
                 "image_base64": b64_img
             }
 
@@ -318,7 +373,7 @@ def main():
                 pass
 
             # Log to Pi console
-            dist_txt = f"{patch_distance_m:.2f}m" if patch_distance_m else "N/A"
+            dist_txt = f"{current_dist_m:.2f}m" if current_dist_m else "N/A"
             sym = "🚨" if detected_hazard else "🟢"
             logger.info(f"{sym} {road_condition} | Conf: {ice_conf:.1%} | Patch Dist: {dist_txt} | Temp: {surface_temp}C")
 
@@ -327,7 +382,7 @@ def main():
     except KeyboardInterrupt:
         logger.info("Stopping robot coordinator...")
     finally:
-        cap.release()
+        cam.release()
         lidar.stop()
         logger.info("Cleanly shut down.")
 
