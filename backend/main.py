@@ -9,8 +9,14 @@ import os
 import base64
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-import cv2
-import numpy as np
+
+try:
+    import cv2
+    import numpy as np
+except ImportError:
+    cv2 = None
+    np = None
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -190,8 +196,8 @@ async def evaluate_image_endpoint(req: PredictRequest):
     Run real YOLOv8 model inference on any user/evaluator supplied image.
     Outputs the real bounding box, confidence, and status.
     """
-    if yolo_model is None:
-        return {"error": "YOLO model weights (best.pt) not loaded on this backend server."}
+    if yolo_model is None or cv2 is None or np is None:
+        return {"error": "YOLO model weights (best.pt) or CV dependencies not loaded on this cloud server. Run local backend for on-demand inference."}
 
     raw_b64 = req.image_base64
     if "," in raw_b64:
