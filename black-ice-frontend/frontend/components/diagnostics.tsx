@@ -15,7 +15,7 @@ const SENSORS = [
   {
     name: 'MLX90640 Thermal Sensor',
     status: 'Calibrated',
-    spec: '32×24 IR Array · emissivity 0.95',
+    spec: '32×24 Thermal Array · emissivity 0.95',
     health: 94,
     bars: [5, 6, 7, 6, 8, 7, 8, 9, 8, 7, 8, 9],
   },

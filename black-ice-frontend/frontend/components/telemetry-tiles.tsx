@@ -178,7 +178,7 @@ export function VerificationTile() {
         </motion.span>
       </AnimatePresence>
       <ul className="mt-4 grid grid-cols-3 gap-1.5">
-        {['RGB', 'IR', 'LiDAR'].map((s) => (
+        {['RGB', 'Thermal', 'LiDAR'].map((s) => (
           <li key={s} className="rounded-sm border border-mint/15 bg-mint/10 py-1.5 text-center font-mono text-[10px] font-semibold text-mint">
             {s} ✓
           </li>

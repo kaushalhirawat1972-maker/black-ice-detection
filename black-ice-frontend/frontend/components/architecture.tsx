@@ -9,7 +9,7 @@ const STEPS = [
   {
     n: '01',
     title: 'Spectral Ingestion',
-    body: 'RGB video, the 32×24 thermal IR grid and 2D LiDAR planar sweeps are ingested on a shared clock so every frame is aligned.',
+    body: 'RGB video, the 32×24 thermal grid and 2D LiDAR planar sweeps are ingested on a shared clock so every frame is aligned.',
   },
   {
     n: '02',

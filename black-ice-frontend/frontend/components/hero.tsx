@@ -92,6 +92,42 @@ export function Hero() {
         </div>
       </section>
 
+      {/* ── What / Why / How strip ── */}
+      <section aria-label="About black ice" className="relative px-5 pb-0 pt-24 sm:px-8">
+        <div className="mx-auto max-w-7xl grid grid-cols-3 gap-5">
+          <Reveal delay={0}>
+            <div className="glass-dark h-full p-6">
+              <p className="text-xs font-medium text-ice">What is it?</p>
+              <h3 className="mt-3 text-lg font-semibold text-snow">Black Ice</h3>
+              <p className="mt-2 text-sm leading-relaxed text-silver">
+                A thin, nearly transparent layer of ice that forms on road surfaces and blends
+                perfectly with the asphalt — invisible to cameras and the naked eye.
+              </p>
+            </div>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <div className="glass-dark h-full p-6">
+              <p className="text-xs font-medium text-ice">Why it's dangerous</p>
+              <h3 className="mt-3 text-lg font-semibold text-snow">Zero Warning</h3>
+              <p className="mt-2 text-sm leading-relaxed text-silver">
+                It looks like a wet road but has near-zero friction. Drivers have no visual cue —
+                making it one of the leading causes of winter road accidents.
+              </p>
+            </div>
+          </Reveal>
+          <Reveal delay={0.16}>
+            <div className="glass-dark h-full p-6">
+              <p className="text-xs font-medium text-ice">How we detect it</p>
+              <h3 className="mt-3 text-lg font-semibold text-snow">Sensor Fusion</h3>
+              <p className="mt-2 text-sm leading-relaxed text-silver">
+                Our system fuses a 1080p camera, thermal sensor, and LiDAR — running a custom
+                YOLOv8 model on the edge — to detect black ice in real time before it's too late.
+              </p>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       <section aria-labelledby="modules-title" className="relative px-5 pb-32 pt-40 sm:px-8">
         <div className="mx-auto max-w-7xl">
           <Reveal className="max-w-2xl">
