@@ -128,7 +128,7 @@ export function DistanceTile() {
   return (
     <TiltCard className="glass-dark rounded-sm p-5" spot="ice">
       <div className="flex items-center justify-between">
-        <TileLabel>LiDAR distance</TileLabel>
+        <TileLabel>Distance</TileLabel>
         <Radar className="size-4 text-ice" aria-hidden />
       </div>
       <p className="mt-3 text-3xl font-extrabold tracking-tight text-snow">
