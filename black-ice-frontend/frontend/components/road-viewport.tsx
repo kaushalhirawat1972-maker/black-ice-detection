@@ -8,7 +8,7 @@ import { STATUS_META, TONE_STYLES, type SpectrumMode } from '@/lib/telemetry'
 import { cn } from '@/lib/utils'
 import { useTelemetry } from './telemetry-provider'
 
-const DEFAULT_CAMERA_URL = 'http://192.168.137.248:5001/'
+const DEFAULT_CAMERA_URL = 'http://192.168.137.248:5003/'
 
 const MODES: { id: SpectrumMode; label: string; hint: string }[] = [
   { id: 'Visible', label: 'Visible', hint: 'RGB 1080p' },
@@ -311,7 +311,7 @@ export function RoadViewport() {
                 type="text"
                 value={inputIp}
                 onChange={(e) => setInputIp(e.target.value)}
-                placeholder="http://192.168.137.248:5001/"
+                placeholder="http://192.168.137.248:5003/"
                 className="w-full rounded border border-white/20 bg-slate-950 px-3 py-2 text-xs font-mono text-snow focus:border-ice focus:outline-none mb-3"
               />
               <div className="flex justify-end gap-2">
