@@ -8,7 +8,9 @@ import { STATUS_META, TONE_STYLES, type SpectrumMode } from '@/lib/telemetry'
 import { cn } from '@/lib/utils'
 import { useTelemetry } from './telemetry-provider'
 
-const DEFAULT_CAMERA_URL = 'http://192.168.137.248:5003/'
+const DEFAULT_BASE_HOST = 'http://192.168.137.248:5003'
+const DEFAULT_RGB_URL = 'http://192.168.137.248:5003/rgb_feed'
+const DEFAULT_THERMAL_URL = 'http://192.168.137.248:5003/thermal_feed'
 
 const MODES: { id: SpectrumMode; label: string; hint: string }[] = [
   { id: 'Visible', label: 'Visible', hint: 'RGB 1080p' },
@@ -75,22 +77,43 @@ function LidarFan() {
 
 export function RoadViewport() {
   const { frame, spectrumMode, setSpectrumMode } = useTelemetry()
-  const [cameraUrl, setCameraUrl] = useState(DEFAULT_CAMERA_URL)
+  const [rgbUrl, setRgbUrl] = useState(DEFAULT_RGB_URL)
+  const [thermalUrl, setThermalUrl] = useState(DEFAULT_THERMAL_URL)
   const [viewMode, setViewMode] = useState<'camera' | 'sample'>('camera')
   const [isEditingIp, setIsEditingIp] = useState(false)
-  const [inputIp, setInputIp] = useState(DEFAULT_CAMERA_URL)
+  const [inputBaseHost, setInputBaseHost] = useState(DEFAULT_BASE_HOST)
+  const [inputRgbUrl, setInputRgbUrl] = useState(DEFAULT_RGB_URL)
+  const [inputThermalUrl, setInputThermalUrl] = useState(DEFAULT_THERMAL_URL)
   const [isHttps, setIsHttps] = useState(false)
+  const [imgLoadError, setImgLoadError] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setIsHttps(window.location.protocol === 'https:')
-      const saved = localStorage.getItem('black_ice_camera_url')
-      if (saved) {
-        setCameraUrl(saved)
-        setInputIp(saved)
+      const savedRgb = localStorage.getItem('black_ice_rgb_url')
+      const savedThermal = localStorage.getItem('black_ice_thermal_url')
+      const savedHost = localStorage.getItem('black_ice_base_host')
+
+      if (savedRgb) {
+        setRgbUrl(savedRgb)
+        setInputRgbUrl(savedRgb)
+      }
+      if (savedThermal) {
+        setThermalUrl(savedThermal)
+        setInputThermalUrl(savedThermal)
+      }
+      if (savedHost) {
+        setInputBaseHost(savedHost)
       }
     }
   }, [])
+
+  // Active stream switches automatically based on chosen spectrum mode
+  const activeStreamUrl = spectrumMode === 'Thermal' ? thermalUrl : rgbUrl
+
+  useEffect(() => {
+    setImgLoadError(false)
+  }, [activeStreamUrl])
 
   // Automatically switch to sample view when user uploads an image for evaluation
   useEffect(() => {
@@ -101,13 +124,26 @@ export function RoadViewport() {
 
   const saveCameraIp = (e: React.FormEvent) => {
     e.preventDefault()
-    let val = inputIp.trim()
-    if (val && !val.startsWith('http://') && !val.startsWith('https://')) {
-      val = `http://${val}`
+    let host = inputBaseHost.trim().replace(/\/$/, '')
+    if (host && !host.startsWith('http://') && !host.startsWith('https://')) {
+      host = `http://${host}`
     }
-    setCameraUrl(val)
+
+    let rgb = inputRgbUrl.trim()
+    if (!rgb) rgb = `${host}/rgb_feed`
+    else if (!rgb.startsWith('http://') && !rgb.startsWith('https://')) rgb = `http://${rgb}`
+
+    let thermal = inputThermalUrl.trim()
+    if (!thermal) thermal = `${host}/thermal_feed`
+    else if (!thermal.startsWith('http://') && !thermal.startsWith('https://')) thermal = `http://${thermal}`
+
+    setRgbUrl(rgb)
+    setThermalUrl(thermal)
+
     if (typeof window !== 'undefined') {
-      localStorage.setItem('black_ice_camera_url', val)
+      localStorage.setItem('black_ice_base_host', host)
+      localStorage.setItem('black_ice_rgb_url', rgb)
+      localStorage.setItem('black_ice_thermal_url', thermal)
     }
     setIsEditingIp(false)
   }
@@ -120,29 +156,44 @@ export function RoadViewport() {
       : `data:image/jpeg;base64,${frame.image_base64}`
     : '/images/road-feed.jpg'
 
-  // Show live bot camera iframe when in 'camera' mode and no custom file was just uploaded
-  const showLiveIframe = viewMode === 'camera' && (!frame.image_base64 || !frame.image_base64.startsWith('data:'))
+  // Show live bot camera feed when in 'camera' mode and no custom file was just uploaded
+  const showLiveStream = viewMode === 'camera' && (!frame.image_base64 || !frame.image_base64.startsWith('data:'))
 
   return (
     <div className="glass-dark rounded-sm p-3 sm:p-4" data-spot={meta.tone === 'safe' ? 'ice' : meta.tone}>
       <div className="relative aspect-video overflow-hidden rounded-sm bg-slate-900">
         <AnimatePresence mode="sync">
           <motion.div
-            key={spectrumMode + (showLiveIframe ? '-live' : '-sample')}
+            key={spectrumMode + (showLiveStream ? '-live' : '-sample')}
             initial={{ opacity: 0, scale: 1.02 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="absolute inset-0"
           >
-            {showLiveIframe ? (
-              <iframe
-                src={cameraUrl}
-                title="Live Bot Camera Feed"
-                className="size-full border-0 object-cover"
-                style={{ filter: MODE_FILTER[spectrumMode] }}
-                allow="autoplay; fullscreen"
-              />
+            {showLiveStream ? (
+              !imgLoadError ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={activeStreamUrl}
+                  alt={`Live ${spectrumMode} Bot Stream`}
+                  className="size-full object-cover"
+                  style={{
+                    filter: spectrumMode === 'Thermal' ? 'none' : MODE_FILTER[spectrumMode],
+                  }}
+                  onError={() => setImgLoadError(true)}
+                />
+              ) : (
+                <iframe
+                  src={activeStreamUrl}
+                  title={`Live ${spectrumMode} Bot Feed`}
+                  className="size-full border-0 object-cover"
+                  style={{
+                    filter: spectrumMode === 'Thermal' ? 'none' : MODE_FILTER[spectrumMode],
+                  }}
+                  allow="autoplay; fullscreen"
+                />
+              )
             ) : (
               <Image
                 src={src || '/placeholder.svg'}
@@ -156,7 +207,8 @@ export function RoadViewport() {
               />
             )}
 
-            {spectrumMode === 'Thermal' && (
+            {/* Synthetic Thermal gradient is ONLY applied on static test samples, never overriding the real thermal camera */}
+            {spectrumMode === 'Thermal' && !showLiveStream && (
               <>
                 <div
                   className="pointer-events-none absolute inset-0 mix-blend-color"
@@ -176,6 +228,7 @@ export function RoadViewport() {
                 )}
               </>
             )}
+
             {spectrumMode === 'Edge' && (
               <>
                 <div className="pointer-events-none absolute inset-0 bg-ice/40 mix-blend-screen" />
@@ -224,33 +277,38 @@ export function RoadViewport() {
           )}
         </AnimatePresence>
 
-        {/* Top-Left Status & Camera IP Indicator */}
+        {/* Top-Left Status & Stream Indicator */}
         <div className="absolute left-4 top-4 flex flex-wrap items-center gap-2 sm:left-6 sm:top-6 z-20">
-          <span className="inline-flex items-center gap-1.5 rounded-sm bg-warn/90 px-2 py-1 font-mono text-[10px] font-bold tracking-wider text-navy">
-            <span className="size-1.5 animate-pulse rounded-full bg-snow" />
-            {showLiveIframe ? 'BOT LIVE' : 'EVAL'}
+          <span className={cn(
+            "inline-flex items-center gap-1.5 rounded-sm px-2 py-1 font-mono text-[10px] font-bold tracking-wider",
+            showLiveStream ? "bg-emerald-500/90 text-slate-950" : "bg-amber-400/90 text-slate-950"
+          )}>
+            <span className="size-1.5 animate-pulse rounded-full bg-white" />
+            {showLiveStream ? (spectrumMode === 'Thermal' ? 'LIVE THERMAL' : 'LIVE RGB') : 'TEST SAMPLE'}
           </span>
           <span className="rounded-sm border border-ice/30 bg-slate-900/70 px-2 py-1 font-mono text-[10px] font-semibold tracking-wider text-ice backdrop-blur">
             {spectrumMode.toUpperCase()} · 30 FPS
           </span>
-          {showLiveIframe && (
+          {showLiveStream && (
             <div className="flex items-center gap-1 rounded-sm border border-white/20 bg-slate-950/70 px-2 py-1 font-mono text-[10px] text-snow backdrop-blur">
-              <span className="text-silver">IP:</span>
-              <span className="text-sky font-semibold">{cameraUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
+              <span className="text-silver">{spectrumMode === 'Thermal' ? 'THERMAL:' : 'RGB:'}</span>
+              <span className="text-sky font-semibold truncate max-w-[140px] sm:max-w-[200px]" title={activeStreamUrl}>
+                {activeStreamUrl.replace(/^https?:\/\//, '')}
+              </span>
               <button
                 type="button"
                 onClick={() => setIsEditingIp(true)}
-                className="ml-1 text-silver hover:text-white transition-colors"
-                title="Edit Camera IP"
+                className="ml-1 text-silver hover:text-white transition-colors p-0.5"
+                title="Configure Stream Endpoints"
               >
                 <Settings className="size-3" />
               </button>
               <a
-                href={cameraUrl}
+                href={activeStreamUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="ml-0.5 text-silver hover:text-sky transition-colors"
-                title="Open Stream in New Tab"
+                className="ml-0.5 text-silver hover:text-sky transition-colors p-0.5"
+                title="Open Active Feed in Direct Tab"
               >
                 <ExternalLink className="size-3" />
               </a>
@@ -287,47 +345,102 @@ export function RoadViewport() {
         </div>
 
         {/* HTTPS Mixed-Content Info Banner */}
-        {isHttps && showLiveIframe && (
+        {isHttps && showLiveStream && (
           <div className="pointer-events-auto absolute top-14 left-4 right-4 sm:left-6 sm:right-auto z-20 flex items-center gap-2 rounded bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-[10px] text-amber-200 backdrop-blur">
             <span>Browser HTTPS may block local HTTP stream.</span>
-            <a href={cameraUrl} target="_blank" rel="noreferrer" className="underline font-semibold hover:text-white flex items-center gap-0.5">
+            <a href={activeStreamUrl} target="_blank" rel="noreferrer" className="underline font-semibold hover:text-white flex items-center gap-0.5">
               Open stream directly <ExternalLink className="size-2.5" />
             </a>
           </div>
         )}
 
-        {/* IP Configuration Modal */}
+        {/* IP & Stream Configuration Modal */}
         {isEditingIp && (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-            <form onSubmit={saveCameraIp} className="w-full max-w-sm rounded-md border border-ice/40 bg-slate-900 p-5 shadow-2xl">
-              <h4 className="font-semibold text-snow text-sm mb-1 flex items-center gap-2">
-                <Video className="size-4 text-ice" />
-                Configure Live Camera IP Address
-              </h4>
-              <p className="text-xs text-silver mb-3">
-                Update the bot camera stream address (saved in browser):
-              </p>
-              <input
-                type="text"
-                value={inputIp}
-                onChange={(e) => setInputIp(e.target.value)}
-                placeholder="http://192.168.137.248:5003/"
-                className="w-full rounded border border-white/20 bg-slate-950 px-3 py-2 text-xs font-mono text-snow focus:border-ice focus:outline-none mb-3"
-              />
-              <div className="flex justify-end gap-2">
+            <form onSubmit={saveCameraIp} className="w-full max-w-md rounded-md border border-ice/40 bg-slate-900 p-5 shadow-2xl space-y-3">
+              <div>
+                <h4 className="font-semibold text-snow text-sm flex items-center gap-2">
+                  <Video className="size-4 text-ice" />
+                  Configure Stream Endpoints
+                </h4>
+                <p className="text-xs text-silver mt-1">
+                  Specify host and camera stream endpoints (saved in browser):
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono text-silver mb-1">
+                  Base Host Address:
+                </label>
+                <input
+                  type="text"
+                  value={inputBaseHost}
+                  onChange={(e) => {
+                    const h = e.target.value
+                    setInputBaseHost(h)
+                    const clean = h.trim().replace(/\/$/, '')
+                    setInputRgbUrl(`${clean}/rgb_feed`)
+                    setInputThermalUrl(`${clean}/thermal_feed`)
+                  }}
+                  placeholder="http://192.168.137.248:5003"
+                  className="w-full rounded border border-white/20 bg-slate-950 px-3 py-1.5 text-xs font-mono text-snow focus:border-ice focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-mono text-silver mb-1">
+                    RGB Stream URL:
+                  </label>
+                  <input
+                    type="text"
+                    value={inputRgbUrl}
+                    onChange={(e) => setInputRgbUrl(e.target.value)}
+                    placeholder="http://192.168.137.248:5003/rgb_feed"
+                    className="w-full rounded border border-white/20 bg-slate-950 px-3 py-1.5 text-xs font-mono text-snow focus:border-ice focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-mono text-silver mb-1">
+                    Thermal Stream URL:
+                  </label>
+                  <input
+                    type="text"
+                    value={inputThermalUrl}
+                    onChange={(e) => setInputThermalUrl(e.target.value)}
+                    placeholder="http://192.168.137.248:5003/thermal_feed"
+                    className="w-full rounded border border-white/20 bg-slate-950 px-3 py-1.5 text-xs font-mono text-snow focus:border-ice focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-2 border-t border-white/10">
                 <button
                   type="button"
-                  onClick={() => setIsEditingIp(false)}
-                  className="rounded px-3 py-1.5 text-xs font-semibold text-silver hover:text-white"
+                  onClick={() => {
+                    setInputBaseHost(DEFAULT_BASE_HOST)
+                    setInputRgbUrl(DEFAULT_RGB_URL)
+                    setInputThermalUrl(DEFAULT_THERMAL_URL)
+                  }}
+                  className="text-[11px] text-sky hover:underline font-mono"
                 >
-                  Cancel
+                  Reset to default (192.168.137.248:5003)
                 </button>
-                <button
-                  type="submit"
-                  className="rounded bg-ice px-4 py-1.5 text-xs font-semibold text-white hover:bg-ice-deep"
-                >
-                  Save & Connect
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingIp(false)}
+                    className="rounded px-3 py-1.5 text-xs font-semibold text-silver hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded bg-ice px-4 py-1.5 text-xs font-semibold text-white hover:bg-ice-deep"
+                  >
+                    Save & Connect
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -339,7 +452,7 @@ export function RoadViewport() {
             Timestamp: <span className="text-snow">{frame.timestamp}</span>
           </span>
           <span>
-            Device: <span className="text-snow">{showLiveIframe ? `Bot Camera (${cameraUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')})` : frame.device}</span>
+            Device: <span className="text-snow">{showLiveStream ? `Bot Camera (${spectrumMode === 'Thermal' ? 'Thermal Feed' : 'RGB Feed'})` : frame.device}</span>
           </span>
         </div>
       </div>
@@ -380,4 +493,3 @@ export function RoadViewport() {
     </div>
   )
 }
-
